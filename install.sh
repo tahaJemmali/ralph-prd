@@ -91,6 +91,19 @@ if [ -f "$SOURCE_DIR/package.json" ]; then
   info "Stamped version: $VERSION"
 fi
 
+# Ensure .claude/ralph/ and .claude/skills/ are in .gitignore
+GITIGNORE="$PROJECT_ROOT/.gitignore"
+for entry in ".claude/ralph/" ".claude/skills/"; do
+  if [ ! -f "$GITIGNORE" ] || ! grep -qxF "$entry" "$GITIGNORE"; then
+    # Add header on first entry
+    if [ ! -f "$GITIGNORE" ] || ! grep -qF "# ralph-prd" "$GITIGNORE"; then
+      printf '\n# ralph-prd (installed via install.sh)\n' >> "$GITIGNORE"
+    fi
+    echo "$entry" >> "$GITIGNORE"
+    ok "Added $entry to .gitignore"
+  fi
+done
+
 # Summary
 echo ""
 ok "ralph-prd installed successfully!"
