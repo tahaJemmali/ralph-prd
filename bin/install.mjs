@@ -101,6 +101,7 @@ info('Quick start:');
 info('  1. Write a PRD:    claude then /write-a-prd');
 info('  2. Create a plan:  claude then /prd-to-plan');
 info('  3. Execute:        node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md');
-info('  Tip: run /grill-me anytime to stress-test your idea or plan');
+info('');
+info('  Tip: run /grill-me anytime to stress-test your idea');
 console.log('');
 info('Docs: https://github.com/tahaJemmali/ralph-prd');
