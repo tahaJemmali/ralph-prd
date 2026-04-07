@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRD to Plan"
+  short_description: "Turn a PRD into phased tracer bullets"
+  default_prompt: "Use $prd-to-plan to inspect the repo, identify durable architectural decisions, and turn the PRD into a phased implementation plan in ./plans/."

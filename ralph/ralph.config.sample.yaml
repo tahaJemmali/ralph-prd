@@ -1,0 +1,44 @@
+# ralph.config.yaml — copy this file to ralph.config.yaml and edit as needed.
+#
+# Ralph looks for ralph.config.yaml next to ralph-claude.mjs.
+# If the file is absent, Ralph defaults to the current working directory
+# as the single repo and uses all flag defaults.
+
+# ── Repositories ──────────────────────────────────────────────────────────────
+# List every git repo Ralph is allowed to read and write.
+# Paths are relative to this config file.
+
+repos:
+  - name: backend
+    path: ../../ebchat-saas-backend
+  - name: dashboard
+    path: ../../ebchat-saas-dashboard
+
+# ── Extra writable directories ────────────────────────────────────────────────
+# Directories that are not git roots but Ralph may write to (e.g. shared docs).
+# Paths are relative to this config file.
+
+# writableDirs:
+#   - ../../docs
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+# All flags default to false / their built-in default.
+# CLI flags (--send-it, etc.) always override what is set here.
+
+flags:
+  # Claude skips self-committing; a separate commit step runs instead —
+  # so the git history looks like you did all the work. Sneaky.
+  iDidThis: false
+
+  # After all phases complete, push the branch to origin and open a PR
+  # via `gh pr create`. Requires the GitHub CLI to be installed.
+  sendIt: false
+
+  # Pause and wait for you to press Enter before each commit step.
+  # Useful when you want to review diffs before anything is committed.
+  waitForIt: false
+
+  # Maximum number of repair → re-verify cycles per phase before Ralph
+  # gives up and exits. Increase if your phases are complex and need
+  # more attempts to pass all acceptance criteria.
+  maxRepairs: 3

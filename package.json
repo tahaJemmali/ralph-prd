@@ -1,0 +1,33 @@
+{
+  "name": "ralph-prd",
+  "version": "1.0.0",
+  "description": "AI-powered phased implementation runner for Claude Code — from PRD to shipped code",
+  "bin": {
+    "ralph-prd": "./bin/install.mjs"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai",
+    "prd",
+    "implementation",
+    "automation",
+    "phased-development"
+  ],
+  "author": "Taha Jemmali",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tahaJemmali/ralph-prd.git"
+  },
+  "files": [
+    "bin/",
+    "ralph/",
+    "skills/",
+    "install.sh",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

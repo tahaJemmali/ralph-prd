@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship Check"
+  short_description: "Run the repo's final validation flow"
+  default_prompt: "Use $ship-check to run the post-change validation flow for this repo, including $review-changes and $repo-doc-maintainer."

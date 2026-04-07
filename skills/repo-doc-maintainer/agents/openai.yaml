@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Doc Maintainer"
+  short_description: "Review changes for repo-doc updates"
+  default_prompt: "Use $repo-doc-maintainer to review recent changes and update AGENTS.md or DEVELOPER_ONBOARDING.md only if repo-shaping guidance changed."

@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+
+/**
+ * ralph-prd installer — called via `npx ralph-prd` or `npx ralph-prd init`
+ *
+ * Copies ralph/ and skills/ into .claude/ of the current project.
+ */
+
+import { existsSync, mkdirSync, cpSync, rmSync, readdirSync } from 'fs';
+import { resolve, dirname, basename } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_ROOT = resolve(__dirname, '..');
+
+const CYAN = '\x1b[36m';
+const GREEN = '\x1b[32m';
+const RED = '\x1b[31m';
+const RESET = '\x1b[0m';
+
+function info(msg) { console.log(`${CYAN}[ralph-prd]${RESET} ${msg}`); }
+function ok(msg) { console.log(`${GREEN}[ralph-prd]${RESET} ${msg}`); }
+function fail(msg) { console.error(`${RED}[ralph-prd]${RESET} ${msg}`); process.exit(1); }
+
+// Find project root by walking up to nearest .git
+function findProjectRoot() {
+  let dir = process.cwd();
+  while (dir !== '/') {
+    if (existsSync(resolve(dir, '.git'))) return dir;
+    dir = dirname(dir);
+  }
+  return process.cwd();
+}
+
+const projectRoot = findProjectRoot();
+const claudeDir = resolve(projectRoot, '.claude');
+
+info(`Installing into ${claudeDir}`);
+
+// Ensure .claude exists
+mkdirSync(claudeDir, { recursive: true });
+
+// Copy ralph runner
+const ralphSrc = resolve(PKG_ROOT, 'ralph');
+const ralphDst = resolve(claudeDir, 'ralph');
+if (existsSync(ralphDst)) {
+  info('Updating existing .claude/ralph/');
+  rmSync(ralphDst, { recursive: true });
+}
+cpSync(ralphSrc, ralphDst, { recursive: true });
+// Remove test dir from installed copy
+const testDir = resolve(ralphDst, 'test');
+if (existsSync(testDir)) rmSync(testDir, { recursive: true });
+ok('Installed ralph runner -> .claude/ralph/');
+
+// Copy skills
+const skillsSrc = resolve(PKG_ROOT, 'skills');
+const skillsDst = resolve(claudeDir, 'skills');
+mkdirSync(skillsDst, { recursive: true });
+
+for (const skillName of readdirSync(skillsSrc)) {
+  const src = resolve(skillsSrc, skillName);
+  const dst = resolve(skillsDst, skillName);
+  if (existsSync(dst)) {
+    info(`Updating existing skill: ${skillName}`);
+    rmSync(dst, { recursive: true });
+  }
+  cpSync(src, dst, { recursive: true });
+  ok(`Installed skill: ${skillName}`);
+}
+
+// Summary
+console.log('');
+ok('ralph-prd installed successfully!');
+console.log('');
+info(`Installed to: ${claudeDir}`);
+info('');
+info('Quick start:');
+info('  1. Write a PRD:    claude then /write-a-prd');
+info('  2. Create a plan:  claude then /prd-to-plan');
+info('  3. Execute:        node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md');
+console.log('');
+info('Docs: https://github.com/tahaJemmali/ralph-prd');
