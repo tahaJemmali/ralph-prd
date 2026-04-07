@@ -37,6 +37,9 @@ const claudeDir = resolve(projectRoot, '.claude');
 
 info(`Installing into ${claudeDir}`);
 
+// Track whether .claude/ is a fresh install (for gitignore decision)
+const isFirstInstall = !existsSync(claudeDir);
+
 // Ensure .claude exists
 mkdirSync(claudeDir, { recursive: true });
 
@@ -73,16 +76,19 @@ for (const skillName of readdirSync(skillsSrc)) {
   ok(`Installed skill: ${skillName}`);
 }
 
-// Ensure .claude/ralph/ and .claude/skills/ are in .gitignore
-const gitignorePath = resolve(projectRoot, '.gitignore');
-const ignoreEntries = ['.claude/ralph/', '.claude/skills/'];
-let gitignoreContent = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
-const missing = ignoreEntries.filter(entry => !gitignoreContent.split('\n').some(line => line.trim() === entry));
-if (missing.length > 0) {
-  const block = (gitignoreContent.length > 0 && !gitignoreContent.endsWith('\n') ? '\n' : '') +
-    '\n# ralph-prd (installed via npx ralph-prd)\n' + missing.join('\n') + '\n';
-  writeFileSync(gitignorePath, gitignoreContent + block, 'utf8');
-  ok(`Added ${missing.join(', ')} to .gitignore`);
+// Only add to .gitignore on first install — if .claude/ already existed,
+// the user may be sharing it via git intentionally.
+if (isFirstInstall) {
+  const gitignorePath = resolve(projectRoot, '.gitignore');
+  const ignoreEntries = ['.claude/ralph/', '.claude/skills/'];
+  let gitignoreContent = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
+  const missing = ignoreEntries.filter(entry => !gitignoreContent.split('\n').some(line => line.trim() === entry));
+  if (missing.length > 0) {
+    const block = (gitignoreContent.length > 0 && !gitignoreContent.endsWith('\n') ? '\n' : '') +
+      '\n# ralph-prd (installed via npx ralph-prd)\n' + missing.join('\n') + '\n';
+    writeFileSync(gitignorePath, gitignoreContent + block, 'utf8');
+    ok(`Added ${missing.join(', ')} to .gitignore`);
+  }
 }
 
 // Summary

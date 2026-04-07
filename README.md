@@ -23,6 +23,7 @@ cd your-project && ../ralph-prd/install.sh
 This installs:
 - `.claude/ralph/` — the phased runner
 - `.claude/skills/` — 6 Claude Code skills for the full PRD-to-ship workflow
+- On first install, adds `.claude/ralph/` and `.claude/skills/` to `.gitignore` (skipped if `.claude/` already exists, so shared setups are respected)
 
 ### Updating
 

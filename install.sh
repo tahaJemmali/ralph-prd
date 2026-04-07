@@ -34,6 +34,10 @@ CLAUDE_DIR="$PROJECT_ROOT/.claude"
 
 info "Installing into $CLAUDE_DIR"
 
+# Track whether .claude/ is a fresh install (for gitignore decision)
+IS_FIRST_INSTALL=false
+[ ! -d "$CLAUDE_DIR" ] && IS_FIRST_INSTALL=true
+
 # Determine source: local clone or download
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -91,18 +95,20 @@ if [ -f "$SOURCE_DIR/package.json" ]; then
   info "Stamped version: $VERSION"
 fi
 
-# Ensure .claude/ralph/ and .claude/skills/ are in .gitignore
-GITIGNORE="$PROJECT_ROOT/.gitignore"
-for entry in ".claude/ralph/" ".claude/skills/"; do
-  if [ ! -f "$GITIGNORE" ] || ! grep -qxF "$entry" "$GITIGNORE"; then
-    # Add header on first entry
-    if [ ! -f "$GITIGNORE" ] || ! grep -qF "# ralph-prd" "$GITIGNORE"; then
-      printf '\n# ralph-prd (installed via install.sh)\n' >> "$GITIGNORE"
+# Only add to .gitignore on first install — if .claude/ already existed,
+# the user may be sharing it via git intentionally.
+if [ "$IS_FIRST_INSTALL" = true ]; then
+  GITIGNORE="$PROJECT_ROOT/.gitignore"
+  for entry in ".claude/ralph/" ".claude/skills/"; do
+    if [ ! -f "$GITIGNORE" ] || ! grep -qxF "$entry" "$GITIGNORE"; then
+      if [ ! -f "$GITIGNORE" ] || ! grep -qF "# ralph-prd" "$GITIGNORE"; then
+        printf '\n# ralph-prd (installed via install.sh)\n' >> "$GITIGNORE"
+      fi
+      echo "$entry" >> "$GITIGNORE"
+      ok "Added $entry to .gitignore"
     fi
-    echo "$entry" >> "$GITIGNORE"
-    ok "Added $entry to .gitignore"
-  fi
-done
+  done
+fi
 
 # Summary
 echo ""
