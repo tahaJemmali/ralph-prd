@@ -24,6 +24,16 @@ This installs:
 - `.claude/ralph/` — the phased runner
 - `.claude/skills/` — 6 Claude Code skills for the full PRD-to-ship workflow
 
+### Updating
+
+To update Ralph in any repo, just re-run the install command:
+
+```bash
+npx ralph-prd
+```
+
+Ralph also checks for updates automatically on every run. If a newer version is available, you'll see a notice in the console output.
+
 ## Requirements
 
 - Node.js 18+
@@ -33,18 +43,22 @@ This installs:
 ## The Workflow
 
 ```
-/write-a-prd  →  /prd-to-plan  →  ralph  →  /ship-check
+/grill-me  →  /write-a-prd  →  /prd-to-plan  →  ralph  →  /ship-check
 ```
 
-### 1. Write a PRD
+### 1. Stress-test your idea
+
+Run `/grill-me`. Claude walks every branch of the decision tree, surfacing gaps, ambiguities, and edge cases before you even write a PRD.
+
+### 2. Write a PRD
 
 Open Claude Code in your project and run `/write-a-prd`. Claude interviews you about the feature, explores your codebase, and writes a structured PRD to `docs/<feature>/PRD.md`.
 
-### 2. Create a phased plan
+### 3. Create a phased plan
 
 Run `/prd-to-plan`. Claude reads the PRD, identifies durable architectural decisions, and breaks the work into vertical-slice phases (tracer bullets). Each phase cuts through all layers end-to-end and is independently verifiable. Output: `docs/<feature>/plan.md`.
 
-### 3. Execute with Ralph
+### 4. Execute with Ralph
 
 ```bash
 node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md
@@ -57,7 +71,7 @@ Ralph runs each phase through Claude:
 4. **Commit** — stages and commits changes
 5. **Checkpoint** — saves progress for crash recovery
 
-### 4. Ship check
+### 5. Ship check
 
 Run `/ship-check` to validate the final result against your project's documented guidelines.
 
@@ -73,6 +87,7 @@ Options:
   --i-did-this       Skip Claude self-commit; run separate commit step
   --send-it          Push branch + open PR when all phases complete
   --wait-for-it      Pause before each commit for review
+  --version, -v      Print installed version and exit
 ```
 
 ### Examples
@@ -95,9 +110,9 @@ node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --send-it
 
 | Skill | Description |
 |-------|-------------|
+| `/grill-me` | Stress-test a plan by walking every branch of the decision tree |
 | `/write-a-prd` | Interview-driven PRD creation with codebase exploration |
 | `/prd-to-plan` | Turn a PRD into phased vertical-slice implementation plan |
-| `/grill-me` | Stress-test a plan by walking every branch of the decision tree |
 | `/review-changes` | Review recent changes against project guidelines |
 | `/repo-doc-maintainer` | Decide if AGENTS.md or docs need updating after changes |
 | `/ship-check` | End-of-task validation: review + doc maintenance check |

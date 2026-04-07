@@ -6,7 +6,7 @@
  * Copies ralph/ and skills/ into .claude/ of the current project.
  */
 
-import { existsSync, mkdirSync, cpSync, rmSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -51,7 +51,11 @@ cpSync(ralphSrc, ralphDst, { recursive: true });
 // Remove test dir from installed copy
 const testDir = resolve(ralphDst, 'test');
 if (existsSync(testDir)) rmSync(testDir, { recursive: true });
-ok('Installed ralph runner -> .claude/ralph/');
+
+// Stamp installed version for update checks
+const pkg = JSON.parse(readFileSync(resolve(PKG_ROOT, 'package.json'), 'utf8'));
+writeFileSync(resolve(ralphDst, '.ralph-version'), pkg.version + '\n', 'utf8');
+ok(`Installed ralph runner v${pkg.version} -> .claude/ralph/`);
 
 // Copy skills
 const skillsSrc = resolve(PKG_ROOT, 'skills');

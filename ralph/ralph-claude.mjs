@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs';
 import { resolve, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
-import { spawnSync } from 'child_process';
+import { spawnSync, execFile } from 'child_process';
 import { createInterface } from 'readline';
 
 import { parsePlan } from './lib/plan-parser.mjs';
@@ -29,6 +29,30 @@ import { mutateCheckboxes } from './lib/plan-mutator.mjs';
 import { deriveBranchName } from './lib/utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ─── Version ─────────────────────────────────────────────────────────────────
+
+const VERSION_FILE = resolve(__dirname, '.ralph-version');
+const LOCAL_VERSION = existsSync(VERSION_FILE)
+  ? readFileSync(VERSION_FILE, 'utf8').trim()
+  : 'unknown';
+
+/**
+ * Check npm registry for the latest version (non-blocking, best-effort).
+ * Returns a promise that resolves to { latest, updateAvailable } or null on error.
+ */
+function checkForUpdate() {
+  return new Promise((resolve) => {
+    if (LOCAL_VERSION === 'unknown') return resolve(null);
+    execFile('npm', ['view', 'ralph-prd', 'version'], { timeout: 5000 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const latest = stdout.trim();
+      if (!latest) return resolve(null);
+      const updateAvailable = latest !== LOCAL_VERSION;
+      resolve({ latest, updateAvailable });
+    });
+  });
+}
 
 // ─── Process-level error handlers ────────────────────────────────────────────
 // Ensure Ralph never exits silently — always log why it died.
@@ -61,6 +85,12 @@ process.on('SIGTERM', () => {
 // ─── Argument parsing ─────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
+
+if (args.includes('--version') || args.includes('-v')) {
+  console.log(`ralph-prd v${LOCAL_VERSION}`);
+  process.exit(0);
+}
+
 const planArg = args.find(a => !a.startsWith('--'));
 const isDryRun = args.includes('--dry-run');
 const isReset = args.includes('--reset');
@@ -83,7 +113,7 @@ const onlyPhaseArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--version]'
   );
   process.exit(1);
 }
@@ -187,7 +217,7 @@ function printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseInd
   const allDone = currentPhaseIndex === null;
 
   console.log(LINE);
-  console.log(`Ralph — ${branch}`);
+  console.log(`Ralph v${LOCAL_VERSION} — ${branch}`);
   console.log(LINE);
   console.log(`Plan:    ${planPath}`);
   console.log(`Branch:  ${branch}`);
@@ -223,6 +253,9 @@ function printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseInd
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // Fire update check in background (non-blocking)
+  const updateCheck = checkForUpdate();
+
   // Parse plan
   let phases;
   let planContent;
@@ -299,6 +332,15 @@ async function main() {
 
   // Print run header
   printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseIndex: onlyPhase !== null ? (onlyPhase - 1) : currentPhaseIndex, state });
+
+  // Show update notice if available
+  const update = await updateCheck;
+  if (update?.updateAvailable) {
+    const YELLOW = '\x1b[33m';
+    const RESET = '\x1b[0m';
+    console.log(`${YELLOW}Update available: v${LOCAL_VERSION} → v${update.latest}${RESET}`);
+    console.log(`${YELLOW}Run "npx ralph-prd" to update.${RESET}`);
+  }
 
   // ─── Dry run ─────────────────────────────────────────────────────────────
 

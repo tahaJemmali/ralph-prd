@@ -84,6 +84,13 @@ done
 # Remove logs and test dirs from installed copy (not needed in target project)
 rm -rf "$CLAUDE_DIR/ralph/logs" "$CLAUDE_DIR/ralph/test"
 
+# Stamp installed version for update checks
+if [ -f "$SOURCE_DIR/package.json" ]; then
+  VERSION="$(grep '"version"' "$SOURCE_DIR/package.json" | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
+  echo "$VERSION" > "$CLAUDE_DIR/ralph/.ralph-version"
+  info "Stamped version: $VERSION"
+fi
+
 # Summary
 echo ""
 ok "ralph-prd installed successfully!"
