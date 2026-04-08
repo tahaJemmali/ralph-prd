@@ -20,7 +20,7 @@ describe('runCommitStep', () => {
   test('no changed repos → skips send(), returns anyCommitted=false', async () => {
     const repoDir = makeTempRepo(); // clean after initial commit
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     let sendCalled = false;
     const send = async () => { sendCalled = true; return ''; };
 
@@ -43,7 +43,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(repoDir, 'feature.txt'), 'content\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     const send = makeFakeSend([
       'REPO: myrepo\nFILES:\n- feature.txt\nCOMMIT: ralph: add feature',
     ]);
@@ -67,7 +67,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(repoDir, 'irrelevant.txt'), 'stuff\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     const send = makeFakeSend(['REPO: myrepo\nSKIP']);
 
     const { anyCommitted } = await runCommitStep({
@@ -87,7 +87,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(repoDir, 'foo.txt'), 'foo\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     // Model omits the "ralph:" prefix — runner should add it
     const send = makeFakeSend([
       'REPO: r\nFILES:\n- foo.txt\nCOMMIT: add foo feature',
@@ -112,7 +112,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(dirtyRepo, 'new.txt'), 'hi\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     const send = makeFakeSend([
       'REPO: dirty\nFILES:\n- new.txt\nCOMMIT: ralph: add new file',
     ]);
@@ -145,7 +145,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(repoDir, 'x.txt'), 'x\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     const send = async () => { throw new Error('transport down'); };
 
     await assert.rejects(
@@ -170,7 +170,7 @@ describe('runCommitStep', () => {
     writeFileSync(join(repoDir, 'f.txt'), 'f\n');
 
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
     const send = makeFakeSend([
       'REPO: r\nFILES:\n- f.txt\nCOMMIT: ralph: commit f',
     ]);

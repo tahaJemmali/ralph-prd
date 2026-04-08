@@ -3,6 +3,11 @@
  *
  * Log writer for Ralph phase sessions.
  *
+ * Log levels:
+ *   "none"      — no files written at all
+ *   "necessary" — headers, footers, and verdict files only (pass/fail, progress)
+ *   "dump"      — full streamed output (current behaviour)
+ *
  * Each run gets a directory (passed in from the orchestrator, derived from the
  * plan name + timestamp).  Within that directory:
  *
@@ -11,8 +16,9 @@
  *
  * Public API:
  *   class LogWriter
- *     constructor(logsDir: string)    ensures the directory exists
- *     openStep(n, name, phaseName)    returns a StepLog
+ *     constructor(logsDir, logLevel)   ensures the directory exists (unless "none")
+ *     openStep(n, name, phaseName)     returns a StepLog
+ *     logLevel: string
  *
  *   class StepLog
  *     writeHeader()
@@ -24,6 +30,9 @@
 import { mkdirSync, appendFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
+/** Valid log levels. */
+export const LOG_LEVELS = ['none', 'necessary', 'dump'];
+
 // ─── StepLog ─────────────────────────────────────────────────────────────────
 
 export class StepLog {
@@ -33,17 +42,20 @@ export class StepLog {
    * @param {number} taskNum   - 1-based task number within the phase
    * @param {string} name      - Task name, e.g. "implementation"
    * @param {string} phaseName
+   * @param {string} logLevel  - "none" | "necessary" | "dump"
    */
-  constructor(logsDir, phaseNum, _taskNum, name, phaseName) {
+  constructor(logsDir, phaseNum, _taskNum, name, phaseName, logLevel) {
     this._logsDir = logsDir;
     this._lastMessagePath = join(logsDir, 'last-message.txt');
     this.filePath = join(logsDir, `phase-${phaseNum}-${name}.log`);
     this._phaseName = phaseName;
     this._name = name;
+    this._logLevel = logLevel;
   }
 
   /** Write the step header line. */
   writeHeader() {
+    if (this._logLevel === 'none') return;
     const ts = new Date().toISOString();
     const line =
       `=== Phase: ${this._phaseName} | Step: ${this._name} | Started: ${ts} ===\n\n`;
@@ -54,9 +66,12 @@ export class StepLog {
    * Append a streamed text chunk to the step log and overwrite last-message.txt.
    * Calling this repeatedly builds up both files incrementally.
    *
+   * Only writes at "dump" level — "necessary" skips the verbose stream.
+   *
    * @param {string} text
    */
   writeChunk(text) {
+    if (this._logLevel !== 'dump') return;
     appendFileSync(this.filePath, text, 'utf8');
     writeFileSync(this._lastMessagePath, text, 'utf8');
   }
@@ -68,6 +83,7 @@ export class StepLog {
    * @param {number} durationMs
    */
   writeFooter(ok, durationMs) {
+    if (this._logLevel === 'none') return;
     const status = ok ? 'ok' : 'failed';
     const seconds = (durationMs / 1000).toFixed(1);
     const line = `\n\n=== Exit: ${status} | Duration: ${seconds}s ===\n`;
@@ -79,12 +95,15 @@ export class StepLog {
 
 export class LogWriter {
   /**
-   * @param {string} logsDir - Absolute path to the run directory.
-   *   Created here if it doesn't exist yet.
+   * @param {string} logsDir  - Absolute path to the run directory.
+   * @param {string} [logLevel="necessary"] - "none" | "necessary" | "dump"
    */
-  constructor(logsDir) {
+  constructor(logsDir, logLevel = 'necessary') {
     this.logsDir = logsDir;
-    mkdirSync(logsDir, { recursive: true });
+    this.logLevel = logLevel;
+    if (logLevel !== 'none') {
+      mkdirSync(logsDir, { recursive: true });
+    }
   }
 
   /**
@@ -97,6 +116,6 @@ export class LogWriter {
    * @returns {StepLog}
    */
   openStep(phaseNum, taskNum, name, phaseName) {
-    return new StepLog(this.logsDir, phaseNum, taskNum, name, phaseName);
+    return new StepLog(this.logsDir, phaseNum, taskNum, name, phaseName, this.logLevel);
   }
 }

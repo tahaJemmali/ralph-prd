@@ -313,11 +313,13 @@ export async function runVerificationLoop({
 
   const { verdict: initialVerdict, failureNotes: initialNotes } = parseVerdict(initialText);
 
-  writeFileSync(
-    join(logWriter.logsDir, `verdict-phase-${phaseNum}-verification.md`),
-    `VERDICT: ${initialVerdict}\n` + (initialNotes ? `\nFAILURE_NOTES:\n${initialNotes}\n` : ''),
-    'utf8'
-  );
+  if (logWriter.logLevel !== 'none') {
+    writeFileSync(
+      join(logWriter.logsDir, `verdict-phase-${phaseNum}-verification.md`),
+      `VERDICT: ${initialVerdict}\n` + (initialNotes ? `\nFAILURE_NOTES:\n${initialNotes}\n` : ''),
+      'utf8'
+    );
+  }
 
   if (initialVerdict === 'PASS') {
     return { nextTaskNum: taskNum, repairCount: 0 };
@@ -363,11 +365,13 @@ export async function runVerificationLoop({
 
     const { verdict, failureNotes } = parseVerdict(reVerifyText);
 
-    writeFileSync(
-      join(logWriter.logsDir, `verdict-phase-${phaseNum}-re-verification-${attempt}.md`),
-      `VERDICT: ${verdict}\n` + (failureNotes ? `\nFAILURE_NOTES:\n${failureNotes}\n` : ''),
-      'utf8'
-    );
+    if (logWriter.logLevel !== 'none') {
+      writeFileSync(
+        join(logWriter.logsDir, `verdict-phase-${phaseNum}-re-verification-${attempt}.md`),
+        `VERDICT: ${verdict}\n` + (failureNotes ? `\nFAILURE_NOTES:\n${failureNotes}\n` : ''),
+        'utf8'
+      );
+    }
 
     if (verdict === 'PASS') {
       return { nextTaskNum: taskNum, repairCount: attempt };

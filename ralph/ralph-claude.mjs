@@ -109,11 +109,19 @@ const onlyPhaseArg = (() => {
   if (eqArg) return parseInt(eqArg.slice('--only-phase='.length), 10);
   return null;
 })();
+// Log level: none | necessary | dump (default: necessary from config)
+const logLevelArg = (() => {
+  const idx = args.indexOf('--log-level');
+  if (idx !== -1 && args[idx + 1] !== undefined) return args[idx + 1];
+  const eqArg = args.find(a => a.startsWith('--log-level='));
+  if (eqArg) return eqArg.slice('--log-level='.length);
+  return null;
+})();
 
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--log-level none|necessary|dump|--version]'
   );
   process.exit(1);
 }
@@ -211,7 +219,7 @@ function pushAndOpenPR(repos, branch, planPath, planContent, phases) {
   }
 }
 
-function printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseIndex, state }) {
+function printHeader({ planPath, branch, repos, logsDir, logLevel, phases, currentPhaseIndex, state }) {
   const primaryRepos = repos.filter(r => !r.writableOnly);
   const writableDirs = repos.filter(r => r.writableOnly);
   const allDone = currentPhaseIndex === null;
@@ -234,7 +242,11 @@ function printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseInd
     for (const r of writableDirs) console.log(`         ${r.path}`);
   }
 
-  console.log(`Logs:    ${logsDir}`);
+  if (logLevel !== 'none') {
+    console.log(`Logs:    ${logsDir} (${logLevel})`);
+  } else {
+    console.log('Logs:    disabled');
+  }
 
   if (allDone) {
     console.log(`Status:  all ${phases.length} phases complete`);
@@ -304,6 +316,7 @@ async function main() {
   const sendIt = sendItArg || configFlags.sendIt;
   const waitForIt = waitForItArg || configFlags.waitForIt;
   const onlyPhase = onlyPhaseArg ?? configFlags.onlyPhase ?? null;
+  const logLevel = logLevelArg ?? configFlags.logLevel ?? 'necessary';
 
   // Load state & find first incomplete phase
   const state = loadState(planPath);
@@ -331,7 +344,7 @@ async function main() {
   }
 
   // Print run header
-  printHeader({ planPath, branch, repos, logsDir, phases, currentPhaseIndex: onlyPhase !== null ? (onlyPhase - 1) : currentPhaseIndex, state });
+  printHeader({ planPath, branch, repos, logsDir, logLevel, phases, currentPhaseIndex: onlyPhase !== null ? (onlyPhase - 1) : currentPhaseIndex, state });
 
   // Show update notice if available
   const update = await updateCheck;
@@ -360,26 +373,28 @@ async function main() {
       console.log(`      (${detail})`);
     }
 
-    // Write dry-run log
-    mkdirSync(logsDir, { recursive: true });
-    const dryRunLines = [
-      `Ralph dry-run — ${new Date().toISOString()}`,
-      `Plan:   ${planPath}`,
-      `Branch: ${branch}`,
-      `Repos:  ${repos.filter(r => !r.writableOnly).map(r => r.path).join(', ')}`,
-      '',
-      'Phases:',
-      ...phases.map(p => {
-        const done = state.completedPhases.includes(p.index);
-        const check = done ? 'x' : ' ';
-        const detail = p.hasVerification
-          ? ` (${p.acceptanceCriteria.length} criteria)`
-          : ' (no verification)';
-        return `  [${check}] ${p.title}${detail}`;
-      }),
-    ];
-    writeFileSync(resolve(logsDir, 'dry-run.log'), dryRunLines.join('\n') + '\n', 'utf8');
-    console.log(`\n[dry-run] Log written to: ${logsDir}/dry-run.log`);
+    // Write dry-run log (unless logging is disabled)
+    if (logLevel !== 'none') {
+      mkdirSync(logsDir, { recursive: true });
+      const dryRunLines = [
+        `Ralph dry-run — ${new Date().toISOString()}`,
+        `Plan:   ${planPath}`,
+        `Branch: ${branch}`,
+        `Repos:  ${repos.filter(r => !r.writableOnly).map(r => r.path).join(', ')}`,
+        '',
+        'Phases:',
+        ...phases.map(p => {
+          const done = state.completedPhases.includes(p.index);
+          const check = done ? 'x' : ' ';
+          const detail = p.hasVerification
+            ? ` (${p.acceptanceCriteria.length} criteria)`
+            : ' (no verification)';
+          return `  [${check}] ${p.title}${detail}`;
+        }),
+      ];
+      writeFileSync(resolve(logsDir, 'dry-run.log'), dryRunLines.join('\n') + '\n', 'utf8');
+      console.log(`\n[dry-run] Log written to: ${logsDir}/dry-run.log`);
+    }
     process.exit(0);
   }
 
@@ -423,7 +438,7 @@ async function main() {
 
   // planContent already read during validation above
   const safetyHeader = loadSafetyHeader(__dirname);
-  const logWriter = new LogWriter(logsDir);
+  const logWriter = new LogWriter(logsDir, logLevel);
 
   // Track phases already complete before this run (for summary)
   const previouslyCompleted = phases
@@ -653,7 +668,7 @@ async function main() {
   console.log(`Duration: ${durationSec}s`);
   if (totalCost > 0) console.log(`API cost: ${totalCost.toFixed(4)}`);
   console.log(`Branch:   ${branch}`);
-  console.log(`Logs:     ${logsDir}`);
+  if (logLevel !== 'none') console.log(`Logs:     ${logsDir}`);
   console.log(LINE);
 
   notify('Ralph — complete', `${phaseResults.length} phase${phaseResults.length === 1 ? '' : 's'} done in ${durationSec}s`);

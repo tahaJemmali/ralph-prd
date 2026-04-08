@@ -78,7 +78,7 @@ describe('e2e: full single-phase run with fake transport', () => {
     const repoDir = makeTempRepo();
     const planPath = makePlanFile(SINGLE_PHASE_PLAN);
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
 
     const { phases } = parsePlanContent(SINGLE_PHASE_PLAN);
     const phase = phases[0];
@@ -129,7 +129,7 @@ describe('e2e: repair-loop run (fail → repair → pass)', () => {
     const repoDir = makeTempRepo();
     const planPath = makePlanFile(SINGLE_PHASE_PLAN);
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
 
     const { phases } = parsePlanContent(SINGLE_PHASE_PLAN);
     const phase = phases[0];
@@ -187,7 +187,7 @@ describe('e2e: double-fail run exits non-zero and preserves logs', () => {
     const repoDir = makeTempRepo();
     const planPath = makePlanFile(SINGLE_PHASE_PLAN);
     const logDir = makeTempDir();
-    const lw = new LogWriter(logDir);
+    const lw = new LogWriter(logDir, 'dump');
 
     const { phases } = parsePlanContent(SINGLE_PHASE_PLAN);
     const phase = phases[0];

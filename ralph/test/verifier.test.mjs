@@ -17,7 +17,7 @@ const PHASE = {
 function makeSetup() {
   const dir = makeTempDir();
   const repoDir = makeTempRepo();
-  const lw = new LogWriter(dir);
+  const lw = new LogWriter(dir, 'dump');
   const repos = [{ name: 'r', path: repoDir }];
   return { dir, lw, repos };
 }

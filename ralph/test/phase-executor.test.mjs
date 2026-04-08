@@ -95,7 +95,7 @@ describe('runImplementation', () => {
 
   test('returns the full response text from send()', async () => {
     const dir = makeTempDir();
-    const lw = new LogWriter(dir);
+    const lw = new LogWriter(dir, 'dump');
     const send = makeFakeSend(['I implemented the CLI.']);
 
     const result = await runImplementation({
@@ -114,7 +114,7 @@ describe('runImplementation', () => {
 
   test('writes a step log with header and footer', async () => {
     const dir = makeTempDir();
-    const lw = new LogWriter(dir);
+    const lw = new LogWriter(dir, 'dump');
     const send = makeFakeSend(['done']);
 
     const step = lw.openStep(1, 'implementation', PHASE.title);
@@ -141,7 +141,7 @@ describe('runImplementation', () => {
 
   test('isDryRun → does not call send, logs prompt instead', async () => {
     const dir = makeTempDir();
-    const lw = new LogWriter(dir);
+    const lw = new LogWriter(dir, 'dump');
     let sendCalled = false;
     const send = async () => { sendCalled = true; return ''; };
 
@@ -161,7 +161,7 @@ describe('runImplementation', () => {
 
   test('send() failure → throws PhaseExecutorError with phase and step info', async () => {
     const dir = makeTempDir();
-    const lw = new LogWriter(dir);
+    const lw = new LogWriter(dir, 'dump');
     const send = async () => { throw new Error('network timeout'); };
 
     await assert.rejects(
@@ -186,7 +186,7 @@ describe('runImplementation', () => {
 
   test('step log preserved even when send() throws', async () => {
     const dir = makeTempDir();
-    const lw = new LogWriter(dir);
+    const lw = new LogWriter(dir, 'dump');
     const send = async (prompt, { onChunk } = {}) => {
       onChunk?.('partial…');
       throw new Error('boom');

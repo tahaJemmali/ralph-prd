@@ -28,6 +28,7 @@ function isGitRepo(dirPath) {
  * @property {boolean}     waitForIt   - Pause for user confirmation before each commit step
  * @property {number}      maxRepairs  - Max repair attempts per phase before hard-stopping (default 3)
  * @property {number|null} onlyPhase   - When set, only this 1-based phase index is run (force re-run)
+ * @property {string}      logLevel    - "none" | "necessary" | "dump" (default "necessary")
  */
 
 /**
@@ -58,7 +59,7 @@ function isGitRepo(dirPath) {
 function parseConfigYaml(content) {
   const repos = [];
   const writableDirs = [];
-  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null };
+  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary' };
   const hooks = { afterCommit: null };
   let section = null;
   let current = null;
@@ -119,6 +120,9 @@ function parseConfigYaml(content) {
         } else if (key === 'onlyPhase') {
           const n = parseInt(trimmedVal, 10);
           if (!isNaN(n) && n > 0) flags.onlyPhase = n;
+        } else if (key === 'logLevel') {
+          const valid = ['none', 'necessary', 'dump'];
+          if (valid.includes(trimmedVal)) flags.logLevel = trimmedVal;
         } else {
           flags[key] = trimmedVal === 'true';
         }

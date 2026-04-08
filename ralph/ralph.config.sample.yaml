@@ -42,3 +42,9 @@ flags:
   # gives up and exits. Increase if your phases are complex and need
   # more attempts to pass all acceptance criteria.
   maxRepairs: 3
+
+  # Log level controls what gets written to disk.
+  #   none      — no log files at all
+  #   necessary — verdicts (pass/fail), missed criteria, phase progress (default)
+  #   dump      — full streamed model output (verbose)
+  logLevel: necessary
