@@ -181,6 +181,10 @@ Ralph validates the plan structure before execution and checks off criteria as p
 - **macOS notifications** — get notified when phases complete or fail
 - **Safety** — optional `blocked-commands.txt` and `blocked-paths.txt` restrict what Claude can do
 
+## Acknowledgments
+
+Three of the skills in this repo — [`/grill-me`](https://skills.sh/mattpocock/skills/grill-me), [`/write-a-prd`](https://skills.sh/mattpocock/skills/write-a-prd), and [`/prd-to-plan`](https://skills.sh/mattpocock/skills/prd-to-plan) — are based on [Matt Pocock](https://github.com/mattpocock)'s work. Matt generously gave his blessing to include them here. If you find these useful, go check out his cohort and give him a star.
+
 ## License
 
 MIT
