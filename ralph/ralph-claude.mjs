@@ -572,7 +572,40 @@ async function main() {
     if (resumeAfter === 'commit') {
       console.log(`  [${ts()}] commit… skipped (checkpoint)`);
     } else if (!iDidThis) {
-      console.log(`  [${ts()}] commit… done by Claude`);
+      // Claude was asked to self-commit during implementation.
+      // Verify it actually happened — if uncommitted changes remain, fall back
+      // to the structured commit step so work is never silently lost.
+      const uncommitted = await scanChangedRepos(repos);
+      if (uncommitted.length === 0) {
+        console.log(`  [${ts()}] commit… done by Claude`);
+      } else {
+        console.log(`  [${ts()}] commit… Claude did not commit, falling back to structured commit`);
+        try {
+          const { nextTaskNum, anyCommitted } = await runCommitStep({
+            phase,
+            repos,
+            safetyHeader,
+            logWriter,
+            phaseNum,
+            taskNum,
+            send,
+          });
+          taskNum = nextTaskNum;
+          if (anyCommitted) {
+            console.log(`  [${ts()}] fallback commit… ok`);
+          } else {
+            console.log(`  [${ts()}] fallback commit… skipped (no changes)`);
+          }
+        } catch (err) {
+          const msg = err instanceof CommitError
+            ? `Phase "${err.phaseName}" fallback commit failed: ${err.message}`
+            : `Unexpected error during fallback commit: ${err.message}`;
+          console.error(`\n${msg}`);
+          console.error(`Logs: ${logsDir}`);
+          notify('Ralph — failed', msg);
+          process.exit(1);
+        }
+      }
     } else {
       if (waitForIt) {
         await waitForUser(`\n  [wait-for-it] Phase ${phaseNum} ready to commit. Press Enter to proceed… `);
