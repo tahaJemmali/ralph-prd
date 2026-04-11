@@ -7,12 +7,12 @@
 # ── Repositories ──────────────────────────────────────────────────────────────
 # List every git repo Ralph is allowed to read and write.
 # Paths are relative to this config file.
+# repos:
+#   - name: backend
+#     path: ../backend
+#   - name: frontend
+#     path: ../frontend
 
-repos:
-  - name: backend
-    path: ../../ebchat-saas-backend
-  - name: dashboard
-    path: ../../ebchat-saas-dashboard
 
 # ── Extra writable directories ────────────────────────────────────────────────
 # Directories that are not git roots but Ralph may write to (e.g. shared docs).
