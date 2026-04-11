@@ -48,3 +48,8 @@ flags:
   #   necessary — verdicts (pass/fail), missed criteria, phase progress (default)
   #   dump      — full streamed model output (verbose)
   logLevel: necessary
+
+  # Skip the post-commit ship-check step for every phase. Set to true if you
+  # have not installed a ship-check skill or want to disable the review gate.
+  # CLI equivalent: --skip-ship-check
+  skipShipCheck: false

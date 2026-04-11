@@ -23,8 +23,9 @@ import { prepareBranch, scanChangedRepos, GitCoordinatorError } from './lib/git-
 import { LogWriter } from './lib/log-writer.mjs';
 import { loadSafetyHeader } from './lib/safety.mjs';
 import { runImplementation, PhaseExecutorError } from './lib/phase-executor.mjs';
-import { runVerificationLoop, VerificationError } from './lib/verifier.mjs';
+import { runVerificationLoop, VerificationError, gatherRepoState } from './lib/verifier.mjs';
 import { runCommitStep, CommitError } from './lib/committer.mjs';
+import { runShipCheck, ShipCheckError } from './lib/ship-checker.mjs';
 import { mutateCheckboxes } from './lib/plan-mutator.mjs';
 import { deriveBranchName } from './lib/utils.mjs';
 
@@ -131,6 +132,8 @@ const iDidThisArg = args.includes('--i-did-this');
 const sendItArg = args.includes('--send-it');
 // Pause and wait for your eyes before each commit. Trust issues? Fair enough.
 const waitForItArg = args.includes('--wait-for-it');
+// Skip the post-commit ship-check step. Use when you don't have a ship-check skill.
+const skipShipCheckArg = args.includes('--skip-ship-check');
 // Run only one specific phase (1-based), force re-run even if already complete.
 const onlyPhaseArg = (() => {
   const idx = args.indexOf('--only-phase');
@@ -151,7 +154,7 @@ const logLevelArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
   );
   process.exit(1);
 }
@@ -345,6 +348,7 @@ async function main() {
   const iDidThis = iDidThisArg || configFlags.iDidThis;
   const sendIt = sendItArg || configFlags.sendIt;
   const waitForIt = waitForItArg || configFlags.waitForIt;
+  const skipShipCheck = skipShipCheckArg || configFlags.skipShipCheck;
   const onlyPhase = onlyPhaseArg ?? configFlags.onlyPhase ?? null;
   const logLevel = logLevelArg ?? configFlags.logLevel ?? 'necessary';
 
@@ -686,6 +690,40 @@ async function main() {
         process.exit(1);
       }
       console.log('ok');
+    }
+
+    // ── Ship-check ────────────────────────────────────────────────────────────
+    if (skipShipCheck) {
+      console.log(`  [${ts()}] ship-check… skipped`);
+    } else {
+      const repoState = gatherRepoState(repos);
+      const shipCheckStart = Date.now();
+      process.stdout.write(`  [${ts()}] ship-check… `);
+      try {
+        ({ nextTaskNum: taskNum } = await runShipCheck({
+          phase,
+          repoState,
+          logWriter,
+          phaseNum,
+          startTaskNum: taskNum,
+          send,
+        }));
+        const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
+        console.log(`VERDICT: APPROVED (${dur}s)`);
+      } catch (err) {
+        const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
+        if (err instanceof ShipCheckError) {
+          console.log(`VERDICT: REMARKS (${dur}s)`);
+          console.error(`\nShip-check failed for phase "${err.phaseName}":`);
+          if (err.findings) console.error(err.findings);
+        } else {
+          console.log('failed');
+          console.error(`\nUnexpected error during ship-check: ${err.message}`);
+        }
+        console.error(`Logs: ${logsDir}`);
+        notify('Ralph — failed', `Ship-check failed for "${phase.title}"`);
+        process.exit(1);
+      }
     }
 
     // ── Checkbox mutation + state persistence ────────────────────────────────

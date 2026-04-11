@@ -23,12 +23,13 @@ function isGitRepo(dirPath) {
 
 /**
  * @typedef {Object} RalphFlags
- * @property {boolean}     iDidThis    - Claude skips self-commit; separate commit step runs instead
- * @property {boolean}     sendIt      - Push branch and open a PR after all phases complete
- * @property {boolean}     waitForIt   - Pause for user confirmation before each commit step
- * @property {number}      maxRepairs  - Max repair attempts per phase before hard-stopping (default 3)
- * @property {number|null} onlyPhase   - When set, only this 1-based phase index is run (force re-run)
- * @property {string}      logLevel    - "none" | "necessary" | "dump" (default "necessary")
+ * @property {boolean}     iDidThis       - Claude skips self-commit; separate commit step runs instead
+ * @property {boolean}     sendIt         - Push branch and open a PR after all phases complete
+ * @property {boolean}     waitForIt      - Pause for user confirmation before each commit step
+ * @property {number}      maxRepairs     - Max repair attempts per phase before hard-stopping (default 3)
+ * @property {number|null} onlyPhase      - When set, only this 1-based phase index is run (force re-run)
+ * @property {string}      logLevel       - "none" | "necessary" | "dump" (default "necessary")
+ * @property {boolean}     skipShipCheck  - Skip the post-commit ship-check step for every phase
  */
 
 /**
@@ -59,7 +60,7 @@ function isGitRepo(dirPath) {
 function parseConfigYaml(content) {
   const repos = [];
   const writableDirs = [];
-  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary' };
+  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary', skipShipCheck: false };
   const hooks = { afterCommit: null };
   let section = null;
   let current = null;
@@ -159,7 +160,7 @@ function parseConfigYaml(content) {
  */
 export function resolveRepos(runnerDir) {
   const configPath = join(runnerDir, CONFIG_FILENAME);
-  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null };
+  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false };
   const defaultHooks = { afterCommit: null };
 
   if (!existsSync(configPath)) {

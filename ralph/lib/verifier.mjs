@@ -62,7 +62,7 @@ export class VerificationError extends Error {
  * @param {import('./config.mjs').Repo[]} repos
  * @returns {string}
  */
-function gatherRepoState(repos) {
+export function gatherRepoState(repos) {
   const primaryRepos = repos.filter(r => !r.writableOnly);
   const parts = [];
 
