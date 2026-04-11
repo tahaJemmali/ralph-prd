@@ -3,12 +3,14 @@
 /**
  * ralph-prd installer — called via `npx ralph-prd` or `npx ralph-prd init`
  *
- * Copies ralph/ and skills/ into .claude/ of the current project.
+ * Copies ralph/ into .claude/ of the current project, then fetches skills
+ * from the skills repo via `npx skills add tahaJemmali/skills`.
  */
 
-import { existsSync, mkdirSync, cpSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { resolve, dirname, basename } from 'path';
+import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync } from 'fs';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { spawnSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
@@ -60,21 +62,17 @@ const pkg = JSON.parse(readFileSync(resolve(PKG_ROOT, 'package.json'), 'utf8'));
 writeFileSync(resolve(ralphDst, '.ralph-version'), pkg.version + '\n', 'utf8');
 ok(`Installed ralph runner v${pkg.version} -> .claude/ralph/`);
 
-// Copy skills
-const skillsSrc = resolve(PKG_ROOT, 'skills');
-const skillsDst = resolve(claudeDir, 'skills');
-mkdirSync(skillsDst, { recursive: true });
-
-for (const skillName of readdirSync(skillsSrc)) {
-  const src = resolve(skillsSrc, skillName);
-  const dst = resolve(skillsDst, skillName);
-  if (existsSync(dst)) {
-    info(`Updating existing skill: ${skillName}`);
-    rmSync(dst, { recursive: true });
-  }
-  cpSync(src, dst, { recursive: true });
-  ok(`Installed skill: ${skillName}`);
+// Install skills via skills.sh
+info('Installing skills from tahaJemmali/skills…');
+const skillsResult = spawnSync('npx', ['skills', 'add', 'tahaJemmali/skills'], {
+  cwd: projectRoot,
+  stdio: 'inherit',
+  encoding: 'utf8',
+});
+if (skillsResult.status !== 0) {
+  fail('Failed to install skills. Check the output above for details.\n  You can retry by running: npx skills add tahaJemmali/skills');
 }
+ok('Installed skills -> .claude/skills/');
 
 // Only add to .gitignore on first install — if .claude/ already existed,
 // the user may be sharing it via git intentionally.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Write a PRD"
-  short_description: "Interview, design, and draft PRDs"
-  default_prompt: "Use $write-a-prd to interview me, inspect the repo, and turn a feature idea into a PRD GitHub issue."

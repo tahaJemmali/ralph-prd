@@ -91,6 +91,36 @@ if (args.includes('--version') || args.includes('-v')) {
   process.exit(0);
 }
 
+// ─── --update-skills ──────────────────────────────────────────────────────────
+// Re-fetch skills from the skills repo and exit. Useful after an upgrade.
+
+if (args.includes('--update-skills')) {
+  console.log('[ralph] Updating skills via npx skills add tahaJemmali/skills…');
+  const result = spawnSync('npx', ['skills', 'add', 'tahaJemmali/skills'], {
+    stdio: 'inherit',
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    console.error('[ralph] Failed to update skills. See output above.');
+    process.exit(1);
+  }
+  console.log('[ralph] Skills updated.');
+  process.exit(0);
+}
+
+// ─── Skills preflight ─────────────────────────────────────────────────────────
+// Fail fast if skills are not installed — gives a clear actionable message.
+
+const skillsDir = resolve(__dirname, '..', 'skills');
+if (!existsSync(skillsDir)) {
+  console.error(
+    '[ralph] Skills not installed. Run: npx ralph-prd to reinstall.\n' +
+    '[ralph] If you recently upgraded ralph-prd, re-run the installer to fetch\n' +
+    '[ralph] skills from the new source: npx ralph-prd'
+  );
+  process.exit(1);
+}
+
 const planArg = args.find(a => !a.startsWith('--'));
 const isDryRun = args.includes('--dry-run');
 const isReset = args.includes('--reset');
@@ -121,7 +151,7 @@ const logLevelArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--log-level none|necessary|dump|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
   );
   process.exit(1);
 }

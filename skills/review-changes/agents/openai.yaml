@@ -1,4 +1,0 @@
-interface:
-  display_name: "Review Changes"
-  short_description: "Review changes against onboarding rules"
-  default_prompt: "Use $review-changes to review the latest changes in this repo against DEVELOPER_ONBOARDING.md and report findings first."

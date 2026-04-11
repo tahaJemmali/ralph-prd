@@ -2,3 +2,5 @@ node_modules/
 ralph/logs/
 .ralph-state-*.json
 .DS_Store
+docs/
+.claude/

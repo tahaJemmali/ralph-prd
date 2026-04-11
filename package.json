@@ -23,7 +23,6 @@
   "files": [
     "bin/",
     "ralph/",
-    "skills/",
     "install.sh",
     "README.md"
   ],

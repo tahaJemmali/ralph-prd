@@ -22,18 +22,24 @@ cd your-project && ../ralph-prd/install.sh
 
 This installs:
 - `.claude/ralph/` — the phased runner
-- `.claude/skills/` — 6 Claude Code skills for the full PRD-to-ship workflow
+- `.claude/skills/` — 7 Claude Code skills fetched from [`tahaJemmali/skills`](https://github.com/tahaJemmali/skills) via `npx skills add`
 - On first install, adds `.claude/ralph/` and `.claude/skills/` to `.gitignore` (skipped if `.claude/` already exists, so shared setups are respected)
 
 ### Updating
 
-To update Ralph in any repo, just re-run the install command:
+To update Ralph and re-fetch skills, just re-run the install command:
 
 ```bash
 npx ralph-prd
 ```
 
 Ralph also checks for updates automatically on every run. If a newer version is available, you'll see a notice in the console output.
+
+To update only the skills without reinstalling:
+
+```bash
+node .claude/ralph/ralph-claude.mjs --update-skills
+```
 
 ## Requirements
 
@@ -88,6 +94,7 @@ Options:
   --i-did-this       Skip Claude self-commit; run separate commit step
   --send-it          Push branch + open PR when all phases complete
   --wait-for-it      Pause before each commit for review
+  --update-skills    Re-fetch skills from tahaJemmali/skills and exit
   --version, -v      Print installed version and exit
 ```
 
@@ -114,9 +121,12 @@ node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --send-it
 | `/grill-me` | Stress-test a plan by walking every branch of the decision tree |
 | `/write-a-prd` | Interview-driven PRD creation with codebase exploration |
 | `/prd-to-plan` | Turn a PRD into phased vertical-slice implementation plan |
+| `/reality-check` | Brutally honest architectural critique and assumption stress-test |
 | `/review-changes` | Review recent changes against project guidelines |
 | `/repo-doc-maintainer` | Decide if AGENTS.md or docs need updating after changes |
 | `/ship-check` | End-of-task validation: review + doc maintenance check |
+
+Skills are fetched from [`tahaJemmali/skills`](https://github.com/tahaJemmali/skills) during install. You can also install or update them independently with `npx skills add tahaJemmali/skills`.
 
 ## Multi-Repo Support
 
