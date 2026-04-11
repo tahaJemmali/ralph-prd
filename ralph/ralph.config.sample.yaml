@@ -53,3 +53,10 @@ flags:
   # have not installed a ship-check skill or want to disable the review gate.
   # CLI equivalent: --skip-ship-check
   skipShipCheck: false
+
+  # When all repair attempts are exhausted, skip verification and continue to
+  # the commit step instead of hard-stopping. Useful when the acceptance
+  # criteria require external credentials or manual steps that the agent cannot
+  # perform. Defaults to false (hard stop).
+  # CLI equivalent: --skip-on-verify-fail
+  skipOnVerifyFail: false

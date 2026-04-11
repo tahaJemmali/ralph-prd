@@ -29,7 +29,8 @@ function isGitRepo(dirPath) {
  * @property {number}      maxRepairs     - Max repair attempts per phase before hard-stopping (default 3)
  * @property {number|null} onlyPhase      - When set, only this 1-based phase index is run (force re-run)
  * @property {string}      logLevel       - "none" | "necessary" | "dump" (default "necessary")
- * @property {boolean}     skipShipCheck  - Skip the post-commit ship-check step for every phase
+ * @property {boolean}     skipShipCheck       - Skip the post-commit ship-check step for every phase
+ * @property {boolean}     skipOnVerifyFail    - Skip verification and continue instead of hard-stopping when all repair attempts fail
  */
 
 /**
@@ -60,7 +61,7 @@ function isGitRepo(dirPath) {
 function parseConfigYaml(content) {
   const repos = [];
   const writableDirs = [];
-  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary', skipShipCheck: false };
+  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary', skipShipCheck: false, skipOnVerifyFail: false };
   const hooks = { afterCommit: null };
   let section = null;
   let current = null;
@@ -160,7 +161,7 @@ function parseConfigYaml(content) {
  */
 export function resolveRepos(runnerDir) {
   const configPath = join(runnerDir, CONFIG_FILENAME);
-  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false };
+  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false, skipOnVerifyFail: false };
   const defaultHooks = { afterCommit: null };
 
   if (!existsSync(configPath)) {

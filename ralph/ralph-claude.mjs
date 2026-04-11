@@ -134,6 +134,8 @@ const sendItArg = args.includes('--send-it');
 const waitForItArg = args.includes('--wait-for-it');
 // Skip the post-commit ship-check step. Use when you don't have a ship-check skill.
 const skipShipCheckArg = args.includes('--skip-ship-check');
+// Skip verification and continue (rather than hard-stop) when all repair attempts fail.
+const skipOnVerifyFailArg = args.includes('--skip-on-verify-fail');
 // Run only one specific phase (1-based), force re-run even if already complete.
 const onlyPhaseArg = (() => {
   const idx = args.indexOf('--only-phase');
@@ -154,7 +156,7 @@ const logLevelArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--skip-on-verify-fail|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
   );
   process.exit(1);
 }
@@ -349,6 +351,7 @@ async function main() {
   const sendIt = sendItArg || configFlags.sendIt;
   const waitForIt = waitForItArg || configFlags.waitForIt;
   const skipShipCheck = skipShipCheckArg || configFlags.skipShipCheck;
+  const skipOnVerifyFail = skipOnVerifyFailArg || configFlags.skipOnVerifyFail;
   const onlyPhase = onlyPhaseArg ?? configFlags.onlyPhase ?? null;
   const logLevel = logLevelArg ?? configFlags.logLevel ?? 'necessary';
 
@@ -574,15 +577,22 @@ async function main() {
         }));
         console.log('ok');
       } catch (err) {
-        if (err instanceof VerificationError) {
+        if (err instanceof VerificationError && skipOnVerifyFail) {
           console.log(`skipped (failed ${configFlags.maxRepairs} time${configFlags.maxRepairs === 1 ? '' : 's'})`);
           console.error(`\nVerification for "${err.phaseName}" failed ${configFlags.maxRepairs} time${configFlags.maxRepairs === 1 ? '' : 's'} — skipping to avoid token waste.`);
           if (err.failureNotes) console.error(err.failureNotes);
           console.error(`Logs: ${logsDir}`);
         } else {
           console.log('failed');
-          const errMsg = `Unexpected error during verification: ${err.message}`;
-          console.error(`\n${errMsg}`);
+          let errMsg;
+          if (err instanceof VerificationError) {
+            errMsg = `Verification failed for phase "${err.phaseName}"`;
+            console.error(`\n${errMsg}:`);
+            if (err.failureNotes) console.error(err.failureNotes);
+          } else {
+            errMsg = `Unexpected error during verification: ${err.message}`;
+            console.error(`\n${errMsg}`);
+          }
           console.error(`Logs: ${logsDir}`);
           notify('Ralph — failed', errMsg);
           process.exit(1);

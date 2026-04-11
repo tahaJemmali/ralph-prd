@@ -93,8 +93,10 @@ Options:
   --only-phase N     Force re-run phase N (1-based)
   --i-did-this       Skip Claude self-commit; run separate commit step
   --send-it          Push branch + open PR when all phases complete
-  --wait-for-it      Pause before each commit for review
-  --update-skills    Re-fetch skills from tahaJemmali/skills and exit
+  --wait-for-it           Pause before each commit for review
+  --skip-ship-check       Skip the post-commit ship-check step
+  --skip-on-verify-fail   Skip verification and continue instead of hard-stopping when all repair attempts fail
+  --update-skills         Re-fetch skills from tahaJemmali/skills and exit
   --version, -v      Print installed version and exit
 ```
 
@@ -145,6 +147,7 @@ writableDirs:
 flags:
   maxRepairs: 3
   sendIt: false
+  skipOnVerifyFail: false
 
 hooks:
   afterCommit: npm test
