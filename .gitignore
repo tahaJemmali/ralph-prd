@@ -4,3 +4,6 @@ ralph/logs/
 .DS_Store
 docs/
 .claude/
+
+# ralph-prd (installed via npx ralph-prd)
+skills-lock.json

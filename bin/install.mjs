@@ -64,29 +64,44 @@ ok(`Installed ralph runner v${pkg.version} -> .claude/ralph/`);
 
 // Install skills via skills.sh
 info('Installing skills from tahaJemmali/skills…');
-const skillsResult = spawnSync('npx', ['skills', 'add', 'tahaJemmali/skills'], {
-  cwd: projectRoot,
-  stdio: 'inherit',
-  encoding: 'utf8',
-});
+const REQUIRED_SKILLS = [
+  'grill-me',
+  'write-a-prd',
+  'prd-to-plan',
+  'reality-check',
+  'ship-check',
+  'review-changes',
+  'repo-doc-maintainer',
+];
+const skillsResult = spawnSync(
+  'npx',
+  ['skills', 'add', 'tahaJemmali/skills', ...REQUIRED_SKILLS.flatMap(s => ['--skill', s]), '-a', 'claude-code', '-y'],
+  { cwd: projectRoot, stdio: 'inherit', encoding: 'utf8' },
+);
 if (skillsResult.status !== 0) {
-  fail('Failed to install skills. Check the output above for details.\n  You can retry by running: npx skills add tahaJemmali/skills');
+  fail('Skills installation failed — aborting. ralph-prd requires all skills to be installed.\n  Retry by running: npx ralph-prd');
 }
 ok('Installed skills -> .claude/skills/');
 
-// Only add to .gitignore on first install — if .claude/ already existed,
+const gitignorePath = resolve(projectRoot, '.gitignore');
+let gitignoreContent = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
+const lines = gitignoreContent.split('\n').map(l => l.trim());
+
+// skills-lock.json is always a generated file — add to gitignore unconditionally.
+const alwaysIgnore = ['skills-lock.json'];
+const alwaysMissing = alwaysIgnore.filter(e => !lines.includes(e));
+
+// Only add .claude/ entries on first install — if .claude/ already existed,
 // the user may be sharing it via git intentionally.
-if (isFirstInstall) {
-  const gitignorePath = resolve(projectRoot, '.gitignore');
-  const ignoreEntries = ['.claude/ralph/', '.claude/skills/'];
-  let gitignoreContent = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
-  const missing = ignoreEntries.filter(entry => !gitignoreContent.split('\n').some(line => line.trim() === entry));
-  if (missing.length > 0) {
-    const block = (gitignoreContent.length > 0 && !gitignoreContent.endsWith('\n') ? '\n' : '') +
-      '\n# ralph-prd (installed via npx ralph-prd)\n' + missing.join('\n') + '\n';
-    writeFileSync(gitignorePath, gitignoreContent + block, 'utf8');
-    ok(`Added ${missing.join(', ')} to .gitignore`);
-  }
+const conditionalIgnore = isFirstInstall ? ['.claude/ralph/', '.claude/skills/'] : [];
+const conditionalMissing = conditionalIgnore.filter(e => !lines.includes(e));
+
+const missing = [...alwaysMissing, ...conditionalMissing];
+if (missing.length > 0) {
+  const block = (gitignoreContent.length > 0 && !gitignoreContent.endsWith('\n') ? '\n' : '') +
+    '\n# ralph-prd (installed via npx ralph-prd)\n' + missing.join('\n') + '\n';
+  writeFileSync(gitignorePath, gitignoreContent + block, 'utf8');
+  ok(`Added ${missing.join(', ')} to .gitignore`);
 }
 
 // Summary
