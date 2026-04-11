@@ -574,19 +574,19 @@ async function main() {
         }));
         console.log('ok');
       } catch (err) {
-        console.log('failed');
-        let errMsg;
         if (err instanceof VerificationError) {
-          errMsg = `Verification failed for phase "${err.phaseName}"`;
-          console.error(`\n${errMsg}:`);
+          console.log(`skipped (failed ${configFlags.maxRepairs} time${configFlags.maxRepairs === 1 ? '' : 's'})`);
+          console.error(`\nVerification for "${err.phaseName}" failed ${configFlags.maxRepairs} time${configFlags.maxRepairs === 1 ? '' : 's'} — skipping to avoid token waste.`);
           if (err.failureNotes) console.error(err.failureNotes);
+          console.error(`Logs: ${logsDir}`);
         } else {
-          errMsg = `Unexpected error during verification: ${err.message}`;
+          console.log('failed');
+          const errMsg = `Unexpected error during verification: ${err.message}`;
           console.error(`\n${errMsg}`);
+          console.error(`Logs: ${logsDir}`);
+          notify('Ralph — failed', errMsg);
+          process.exit(1);
         }
-        console.error(`Logs: ${logsDir}`);
-        notify('Ralph — failed', errMsg);
-        process.exit(1);
       }
 
       // Checkpoint: verification done
@@ -710,6 +710,34 @@ async function main() {
         }));
         const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
         console.log(`VERDICT: APPROVED (${dur}s)`);
+
+        // Ship-check repair may have modified files — commit any leftovers.
+        const postShipChanges = await scanChangedRepos(repos);
+        if (postShipChanges.length > 0) {
+          process.stdout.write(`  [${ts()}] post-ship-check commit… `);
+          try {
+            const { nextTaskNum, anyCommitted } = await runCommitStep({
+              phase,
+              repos,
+              safetyHeader,
+              logWriter,
+              phaseNum,
+              taskNum,
+              send,
+            });
+            taskNum = nextTaskNum;
+            console.log(anyCommitted ? 'ok' : 'skipped (no changes)');
+          } catch (err) {
+            console.log('failed');
+            const msg = err instanceof CommitError
+              ? `Phase "${err.phaseName}" post-ship-check commit failed: ${err.message}`
+              : `Unexpected error during post-ship-check commit: ${err.message}`;
+            console.error(`\n${msg}`);
+            console.error(`Logs: ${logsDir}`);
+            notify('Ralph — failed', msg);
+            process.exit(1);
+          }
+        }
       } catch (err) {
         const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
         if (err instanceof ShipCheckError) {
