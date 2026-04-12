@@ -56,8 +56,8 @@ if (subcommand === 'run') {
 
 } else if (subcommand === 'init' || !subcommand) {
   // npx ralph-prd init  OR  npx ralph-prd (legacy: bare invocation = init)
-  const { install } = await import('./install.mjs');
-  await install();
+  // install.mjs is a top-level script — importing it runs the installer
+  await import('./install.mjs');
 
 } else if (subcommand === '--update-skills') {
   // npx ralph-prd --update-skills
