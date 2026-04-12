@@ -1,0 +1,1 @@
+When you are done with all file changes, commit everything with a clear commit message in the format: "ralph: <short imperative summary>" followed by a blank line and a bullet list describing what changed and why. Then output a brief summary of what you changed.

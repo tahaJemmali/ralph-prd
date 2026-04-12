@@ -27,6 +27,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { render } from './prompts.mjs';
+
 // ─── Error type ───────────────────────────────────────────────────────────────
 
 export class ShipCheckError extends Error {
@@ -132,56 +134,22 @@ function parseVerdict(text) {
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
-/**
- * Build the ship-check prompt by combining the skill body with phase context
- * and the current repository state.
- *
- * @param {string} skillBody - Skill content with frontmatter stripped
- * @param {import('./plan-parser.mjs').Phase} phase
- * @param {string} repoState - Pre-computed git status / diff summary
- * @returns {string}
- */
 function buildShipCheckPrompt(skillBody, phase, repoState) {
-  return [
+  return render('ship_check', {
     skillBody,
-    '',
-    '---',
-    '',
-    `## Phase under review: ${phase.title}`,
-    '',
-    phase.body.trim(),
-    '',
-    '## Current repository state',
-    '',
+    phaseTitle: phase.title,
+    phaseBody: phase.body.trim(),
     repoState,
-  ].join('\n');
+  });
 }
 
-/**
- * Build the repair prompt sent after a REMARKS verdict.
- *
- * @param {import('./plan-parser.mjs').Phase} phase
- * @param {string} repoState
- * @param {string} findings - Findings text from the ship-check session
- * @returns {string}
- */
 function buildRepairPrompt(phase, repoState, findings) {
-  return [
-    `The ship-check reviewer found issues with the implementation of phase "${phase.title}".`,
-    'Please address the following remarks, then the phase will be re-checked.',
-    '',
-    '## Reviewer findings',
-    '',
-    findings || '(No specific findings provided.)',
-    '',
-    '## Phase being reviewed',
-    '',
-    phase.body.trim(),
-    '',
-    '## Current repository state',
-    '',
+  return render('ship_check_repair', {
+    phaseTitle: phase.title,
+    phaseBody: phase.body.trim(),
     repoState,
-  ].join('\n');
+    findings: findings || '(No specific findings provided.)',
+  });
 }
 
 // ─── Session helper ───────────────────────────────────────────────────────────
