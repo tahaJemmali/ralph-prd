@@ -7,7 +7,7 @@
  * from the skills repo via `npx skills add tahaJemmali/skills`.
  */
 
-import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
@@ -62,6 +62,14 @@ const pkg = JSON.parse(readFileSync(resolve(PKG_ROOT, 'package.json'), 'utf8'));
 writeFileSync(resolve(ralphDst, '.ralph-version'), pkg.version + '\n', 'utf8');
 ok(`Installed ralph runner v${pkg.version} -> .claude/ralph/`);
 
+// Create default ralph.config.yaml if it doesn't exist yet
+const configDst = resolve(ralphDst, 'ralph.config.yaml');
+const configSrc = resolve(ralphDst, 'ralph.config.sample.yaml');
+if (!existsSync(configDst) && existsSync(configSrc)) {
+  copyFileSync(configSrc, configDst);
+  ok('Created default ralph.config.yaml -> .claude/ralph/ralph.config.yaml');
+}
+
 // Install skills via skills.sh
 info('Installing skills from tahaJemmali/skills…');
 const REQUIRED_SKILLS = [
@@ -111,6 +119,7 @@ console.log('');
 info(`Installed to: ${claudeDir}`);
 info('');
 info('Quick start:');
+info('  0. Configure:      edit .claude/ralph/ralph.config.yaml');
 info('  1. Write a PRD:    claude then /write-a-prd');
 info('  2. Create a plan:  claude then /prd-to-plan');
 info('  3. Execute:        node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md');
