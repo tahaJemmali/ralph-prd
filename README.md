@@ -2,7 +2,7 @@
 
 AI-powered phased implementation runner for [Claude Code](https://claude.ai/claude-code). Go from PRD to shipped code — automatically.
 
-Ralph takes a markdown plan file, breaks it into phases, and executes each one through the Claude CLI with built-in verification, repair loops, and auto-commits.
+Ralph takes a markdown plan file, breaks it into phases and tasks, and executes each one through the Claude CLI with built-in verification, repair loops, and auto-commits.
 
 ## Install
 
@@ -32,6 +32,8 @@ To update Ralph and re-fetch skills, just re-run the install command:
 ```bash
 npx ralph-prd
 ```
+
+Your `ralph.config.yaml` is preserved across updates — only the runner and skills are refreshed.
 
 Ralph also checks for updates automatically on every run. If a newer version is available, you'll see a notice in the console output.
 
@@ -72,11 +74,17 @@ node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md
 ```
 
 Ralph runs each phase through Claude:
-1. **Implementation** — Claude builds the phase
-2. **Verification** — checks acceptance criteria pass
-3. **Repair loop** — if verification fails, auto-repairs (up to N attempts)
-4. **Commit** — stages and commits changes
-5. **Checkpoint** — saves progress for crash recovery
+1. **Task-level implementation** — each phase is broken into individual tasks (user stories) and implemented one at a time for focused, atomic progress
+2. **Per-task commit** — every task gets its own commit with enriched messages (decisions, blockers, notes for next task)
+3. **Verification** — checks acceptance criteria pass after all tasks in the phase complete
+4. **Repair loop** — if verification fails, auto-repairs (up to N attempts)
+5. **Ship-check** — post-commit quality gate
+6. **Checkpoint** — saves progress per-task for crash recovery
+
+Each implementation session receives:
+- The **PRD** for business context (resolved from the plan's `> Source PRD:` line)
+- The **last 5 commits** per repo so tasks build on each other's work
+- The **full plan** for cross-phase awareness
 
 ### 5. Ship check
 
@@ -98,6 +106,7 @@ Options:
   --ship-check-retries=N       Retry ship-check up to N times per phase before giving up (default 1)
   --skip-on-ship-check-fail    Log and continue when all ship-check retries fail instead of hard-stopping
   --skip-on-verify-fail        Skip verification and continue instead of hard-stopping when all repair attempts fail
+  --log-level=LEVEL            Set log level: none | necessary | dump (default: necessary)
   --update-skills         Re-fetch skills from tahaJemmali/skills and exit
   --version, -v      Print installed version and exit
 ```
@@ -117,6 +126,30 @@ node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --only-phase 3
 # Ship it: run all phases, push, open PR
 node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --send-it
 ```
+
+## Commit Messages
+
+Ralph produces enriched commit messages with context that carries forward between tasks:
+
+```
+ralph: add user authentication endpoint
+
+- Added POST /auth/login route with JWT response
+- Created JWT token generation utility
+
+Decisions:
+- Chose bcrypt over argon2 for password hashing (broader ecosystem support)
+- Used 15-minute JWT expiry with refresh token pattern per PRD requirement
+
+Blockers:
+- Redis session store not available yet (Phase 3) — using in-memory Map
+
+Next:
+- Token refresh endpoint needs the auth middleware created here
+- Rate limiting should be added before login goes to production
+```
+
+The **Decisions**, **Blockers**, and **Next** sections are optional — included only when relevant.
 
 ## Included Skills
 
@@ -158,6 +191,8 @@ hooks:
   afterCommit: npm test
 ```
 
+If the config file exists but has no `repos:` entries, Ralph falls back to using the current working directory.
+
 ## Plan File Format
 
 Plans must follow the template produced by `/prd-to-plan`:
@@ -180,7 +215,9 @@ Plans must follow the template produced by `/prd-to-plan`:
 
 ### What to build
 
-Description of the vertical slice.
+1. First task — implement the login endpoint
+2. Second task — add JWT token generation
+3. Third task — wire up password hashing
 
 ### Acceptance criteria
 
@@ -190,13 +227,19 @@ Description of the vertical slice.
 
 Ralph validates the plan structure before execution and checks off criteria as phases complete.
 
+The "What to build" section is parsed into individual tasks. Numbered items (`1.`, `2.`) or bullet items (`-`, `*`) each become a separate implementation session with its own commit. If the section is a single paragraph, the entire phase runs as one task.
+
 ## How It Works
 
 - **Zero dependencies** — pure Node.js, no npm packages
-- **Crash recovery** — checkpoints after each step; resume where you left off
+- **Task-level execution** — phases are broken into focused tasks, each with its own implementation + commit cycle
+- **PRD context** — every session gets the source PRD and recent git history
+- **Enriched commits** — decisions, blockers, and notes carry knowledge between tasks
+- **Crash recovery** — checkpoints after each task; resume where you left off
+- **Atomic state writes** — write-then-rename prevents corruption on crash
 - **Live streaming** — see Claude's tool calls, thinking, and output in real-time
 - **Full logging** — JSONL logs of every Claude CLI event per phase
-- **macOS notifications** — get notified when phases complete or fail
+- **Cross-platform notifications** — macOS, Linux (notify-send), and terminal bell fallback
 - **Safety** — optional `blocked-commands.txt` and `blocked-paths.txt` restrict what Claude can do
 
 ## Acknowledgments
