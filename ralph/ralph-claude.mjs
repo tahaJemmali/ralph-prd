@@ -134,6 +134,14 @@ const sendItArg = args.includes('--send-it');
 const waitForItArg = args.includes('--wait-for-it');
 // Skip the post-commit ship-check step. Use when you don't have a ship-check skill.
 const skipShipCheckArg = args.includes('--skip-ship-check');
+// Max ship-check attempts per phase before giving up.
+const shipCheckRetriesArg = (() => {
+  const eqArg = args.find(a => a.startsWith('--ship-check-retries='));
+  if (eqArg) return parseInt(eqArg.slice('--ship-check-retries='.length), 10);
+  return null;
+})();
+// Log and continue after all ship-check retries fail instead of hard-stopping.
+const skipOnShipCheckFailArg = args.includes('--skip-on-ship-check-fail');
 // Skip verification and continue (rather than hard-stop) when all repair attempts fail.
 const skipOnVerifyFailArg = args.includes('--skip-on-verify-fail');
 // Run only one specific phase (1-based), force re-run even if already complete.
@@ -156,7 +164,7 @@ const logLevelArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--skip-on-verify-fail|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--ship-check-retries=N|--skip-on-ship-check-fail|--skip-on-verify-fail|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
   );
   process.exit(1);
 }
@@ -351,6 +359,10 @@ async function main() {
   const sendIt = sendItArg || configFlags.sendIt;
   const waitForIt = waitForItArg || configFlags.waitForIt;
   const skipShipCheck = skipShipCheckArg || configFlags.skipShipCheck;
+  const shipCheckRetries = (shipCheckRetriesArg !== null && !isNaN(shipCheckRetriesArg) && shipCheckRetriesArg > 0)
+    ? shipCheckRetriesArg
+    : (configFlags.shipCheckRetries ?? 1);
+  const skipOnShipCheckFail = skipOnShipCheckFailArg || configFlags.skipOnShipCheckFail;
   const skipOnVerifyFail = skipOnVerifyFailArg || configFlags.skipOnVerifyFail;
   const onlyPhase = onlyPhaseArg ?? configFlags.onlyPhase ?? null;
   const logLevel = logLevelArg ?? configFlags.logLevel ?? 'necessary';
@@ -706,61 +718,87 @@ async function main() {
     if (skipShipCheck) {
       console.log(`  [${ts()}] ship-check… skipped`);
     } else {
-      const repoState = gatherRepoState(repos);
-      const shipCheckStart = Date.now();
-      process.stdout.write(`  [${ts()}] ship-check… `);
-      try {
-        ({ nextTaskNum: taskNum } = await runShipCheck({
-          phase,
-          repoState,
-          logWriter,
-          phaseNum,
-          startTaskNum: taskNum,
-          send,
-        }));
-        const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
-        console.log(`VERDICT: APPROVED (${dur}s)`);
+      const maxAttempts = configFlags.shipCheckRetries ?? 1;
+      let shipCheckPassed = false;
 
-        // Ship-check repair may have modified files — commit any leftovers.
-        const postShipChanges = await scanChangedRepos(repos);
-        if (postShipChanges.length > 0) {
-          process.stdout.write(`  [${ts()}] post-ship-check commit… `);
-          try {
-            const { nextTaskNum, anyCommitted } = await runCommitStep({
-              phase,
-              repos,
-              safetyHeader,
-              logWriter,
-              phaseNum,
-              taskNum,
-              send,
-            });
-            taskNum = nextTaskNum;
-            console.log(anyCommitted ? 'ok' : 'skipped (no changes)');
-          } catch (err) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const repoState = gatherRepoState(repos);
+        const shipCheckStart = Date.now();
+        const attemptSuffix = maxAttempts > 1 ? ` (attempt ${attempt}/${maxAttempts})` : '';
+        process.stdout.write(`  [${ts()}] ship-check${attemptSuffix}… `);
+
+        try {
+          ({ nextTaskNum: taskNum } = await runShipCheck({
+            phase,
+            repoState,
+            logWriter,
+            phaseNum,
+            startTaskNum: taskNum,
+            send,
+          }));
+          const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
+          console.log(`VERDICT: APPROVED (${dur}s)`);
+          shipCheckPassed = true;
+
+          // Ship-check repair may have modified files — commit any leftovers.
+          const postShipChanges = await scanChangedRepos(repos);
+          if (postShipChanges.length > 0) {
+            process.stdout.write(`  [${ts()}] post-ship-check commit… `);
+            try {
+              const { nextTaskNum, anyCommitted } = await runCommitStep({
+                phase,
+                repos,
+                safetyHeader,
+                logWriter,
+                phaseNum,
+                taskNum,
+                send,
+              });
+              taskNum = nextTaskNum;
+              console.log(anyCommitted ? 'ok' : 'skipped (no changes)');
+            } catch (err) {
+              console.log('failed');
+              const msg = err instanceof CommitError
+                ? `Phase "${err.phaseName}" post-ship-check commit failed: ${err.message}`
+                : `Unexpected error during post-ship-check commit: ${err.message}`;
+              console.error(`\n${msg}`);
+              console.error(`Logs: ${logsDir}`);
+              notify('Ralph — failed', msg);
+              process.exit(1);
+            }
+          }
+          break;
+        } catch (err) {
+          const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
+          if (err instanceof ShipCheckError) {
+            console.log(`VERDICT: REMARKS (${dur}s)`);
+            console.error(`\nShip-check failed for phase "${err.phaseName}":`);
+            if (err.findings) console.error(err.findings);
+          } else {
             console.log('failed');
-            const msg = err instanceof CommitError
-              ? `Phase "${err.phaseName}" post-ship-check commit failed: ${err.message}`
-              : `Unexpected error during post-ship-check commit: ${err.message}`;
-            console.error(`\n${msg}`);
+            console.error(`\nUnexpected error during ship-check: ${err.message}`);
             console.error(`Logs: ${logsDir}`);
-            notify('Ralph — failed', msg);
+            notify('Ralph — failed', `Ship-check failed for "${phase.title}"`);
             process.exit(1);
           }
+
+          if (attempt < maxAttempts) {
+            console.error(`  Retrying ship-check (${attempt}/${maxAttempts} attempts used)…`);
+          }
         }
-      } catch (err) {
-        const dur = ((Date.now() - shipCheckStart) / 1000).toFixed(1);
-        if (err instanceof ShipCheckError) {
-          console.log(`VERDICT: REMARKS (${dur}s)`);
-          console.error(`\nShip-check failed for phase "${err.phaseName}":`);
-          if (err.findings) console.error(err.findings);
-        } else {
-          console.log('failed');
-          console.error(`\nUnexpected error during ship-check: ${err.message}`);
-        }
+      }
+
+      if (!shipCheckPassed) {
+        const attempts = `${maxAttempts} attempt${maxAttempts === 1 ? '' : 's'}`;
+        console.error(`\nShip-check did not pass after ${attempts} for phase "${phase.title}".`);
         console.error(`Logs: ${logsDir}`);
-        notify('Ralph — failed', `Ship-check failed for "${phase.title}"`);
-        process.exit(1);
+        if (skipOnShipCheckFail) {
+          console.error(`Continuing anyway (skipOnShipCheckFail: true).`);
+          notify('Ralph — ship-check skipped', `"${phase.title}" ship-check failed after ${attempts} — continuing`);
+        } else {
+          notify('Ralph — failed', `Ship-check failed for "${phase.title}" after ${attempts}`);
+          process.exit(1);
+        }
       }
     }
 

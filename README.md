@@ -94,8 +94,10 @@ Options:
   --i-did-this       Skip Claude self-commit; run separate commit step
   --send-it          Push branch + open PR when all phases complete
   --wait-for-it           Pause before each commit for review
-  --skip-ship-check       Skip the post-commit ship-check step
-  --skip-on-verify-fail   Skip verification and continue instead of hard-stopping when all repair attempts fail
+  --skip-ship-check            Skip the post-commit ship-check step entirely
+  --ship-check-retries=N       Retry ship-check up to N times per phase before giving up (default 1)
+  --skip-on-ship-check-fail    Log and continue when all ship-check retries fail instead of hard-stopping
+  --skip-on-verify-fail        Skip verification and continue instead of hard-stopping when all repair attempts fail
   --update-skills         Re-fetch skills from tahaJemmali/skills and exit
   --version, -v      Print installed version and exit
 ```
@@ -147,6 +149,9 @@ writableDirs:
 flags:
   maxRepairs: 3
   sendIt: false
+  skipShipCheck: false
+  shipCheckRetries: 1
+  skipOnShipCheckFail: true
   skipOnVerifyFail: false
 
 hooks:

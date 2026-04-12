@@ -54,6 +54,16 @@ flags:
   # CLI equivalent: --skip-ship-check
   skipShipCheck: false
 
+  # Max ship-check attempts per phase before giving up. On final failure,
+  # behaviour is controlled by skipOnShipCheckFail below.
+  # CLI equivalent: --ship-check-retries=N
+  shipCheckRetries: 1
+
+  # When true, log and continue if ship-check fails after all retries instead
+  # of hard-stopping. Defaults to true.
+  # CLI equivalent: --skip-on-ship-check-fail
+  skipOnShipCheckFail: true
+
   # When all repair attempts are exhausted, skip verification and continue to
   # the commit step instead of hard-stopping. Useful when the acceptance
   # criteria require external credentials or manual steps that the agent cannot
