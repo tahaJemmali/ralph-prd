@@ -59,7 +59,7 @@ export class PhaseExecutorError extends Error {
  * @param {string}   opts.safetyHeader  - May be empty string
  * @returns {string}
  */
-export function buildImplementationPrompt({ planContent, phase, repos, safetyHeader, selfCommit = true }) {
+export function buildImplementationPrompt({ planContent, phase, repos, safetyHeader, selfCommit = true, prdContent = '', recentCommits = '' }) {
   const primaryRepos = repos.filter(r => !r.writableOnly);
   const writableDirs = repos.filter(r => r.writableOnly);
 
@@ -71,6 +71,16 @@ export function buildImplementationPrompt({ planContent, phase, repos, safetyHea
       writableDirs.map(r => `  - ${r.path}`).join('\n')
     : '';
 
+  // Build recent commits section (shows what prior phases/tasks already built)
+  const recentCommitsSection = recentCommits
+    ? `\n## Recent commits (for context — do NOT redo this work)\n\n${recentCommits}\n\n`
+    : '';
+
+  // Build PRD section (business context for the implementation)
+  const prdSection = prdContent
+    ? `## Source PRD (business context — understand the WHY behind the plan)\n\n${prdContent.trim()}\n\n---\n\n`
+    : '';
+
   const closingKey = selfCommit ? 'implementation_closing_commit' : 'implementation_closing_no_commit';
 
   return (
@@ -78,6 +88,8 @@ export function buildImplementationPrompt({ planContent, phase, repos, safetyHea
     render('implementation', {
       repoLines,
       writableLines,
+      recentCommits: recentCommitsSection,
+      prdSection,
       planContent: planContent.trim(),
       phaseTitle: phase.title,
       phaseBody: phase.body.trim(),
@@ -118,8 +130,10 @@ export async function runImplementation({
   send,
   isDryRun,
   selfCommit = true,
+  prdContent = '',
+  recentCommits = '',
 }) {
-  const prompt = buildImplementationPrompt({ planContent, phase, repos, safetyHeader, selfCommit });
+  const prompt = buildImplementationPrompt({ planContent, phase, repos, safetyHeader, selfCommit, prdContent, recentCommits });
   const step = logWriter.openStep(phaseNum, taskNum, 'implementation', phase.title);
 
   step.writeHeader();

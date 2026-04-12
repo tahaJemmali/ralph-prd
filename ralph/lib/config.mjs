@@ -182,7 +182,16 @@ export function resolveRepos(runnerDir) {
   const configDir = dirname(configPath);
 
   if (parsed.repos.length === 0) {
-    throw new Error(`${configPath}: no repos defined`);
+    // No repos defined — fall back to cwd (same as no-config-file behavior),
+    // but still respect flags and hooks from the config.
+    const cwd = process.cwd();
+    if (!existsSync(cwd)) {
+      throw new Error(`Default repo (cwd) does not exist: ${cwd}`);
+    }
+    if (!isGitRepo(cwd)) {
+      throw new Error(`Default repo (cwd) is not a git repository: ${cwd}`);
+    }
+    return { repos: [{ name: basename(cwd), path: cwd }], flags: parsed.flags, hooks: parsed.hooks };
   }
 
   const errors = [];

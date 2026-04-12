@@ -14,7 +14,7 @@ Your job is to fix exactly the issues listed in the failure notes and nothing mo
 
 ---
 
-## Full plan (for context)
+{{prdSection}}## Full plan (for context)
 
 {{planContent}}
 

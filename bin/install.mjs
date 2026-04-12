@@ -48,6 +48,13 @@ mkdirSync(claudeDir, { recursive: true });
 // Copy ralph runner
 const ralphSrc = resolve(PKG_ROOT, 'ralph');
 const ralphDst = resolve(claudeDir, 'ralph');
+// Preserve user config across updates
+const configDst = resolve(ralphDst, 'ralph.config.yaml');
+let savedConfig = null;
+if (existsSync(configDst)) {
+  savedConfig = readFileSync(configDst, 'utf8');
+}
+
 if (existsSync(ralphDst)) {
   info('Updating existing .claude/ralph/');
   rmSync(ralphDst, { recursive: true });
@@ -62,12 +69,16 @@ const pkg = JSON.parse(readFileSync(resolve(PKG_ROOT, 'package.json'), 'utf8'));
 writeFileSync(resolve(ralphDst, '.ralph-version'), pkg.version + '\n', 'utf8');
 ok(`Installed ralph runner v${pkg.version} -> .claude/ralph/`);
 
-// Create default ralph.config.yaml if it doesn't exist yet
-const configDst = resolve(ralphDst, 'ralph.config.yaml');
-const configSrc = resolve(ralphDst, 'ralph.config.sample.yaml');
-if (!existsSync(configDst) && existsSync(configSrc)) {
-  copyFileSync(configSrc, configDst);
-  ok('Created default ralph.config.yaml -> .claude/ralph/ralph.config.yaml');
+// Restore saved config or create default from sample
+if (savedConfig !== null) {
+  writeFileSync(configDst, savedConfig, 'utf8');
+  ok('Restored existing ralph.config.yaml');
+} else {
+  const configSrc = resolve(ralphDst, 'ralph.config.sample.yaml');
+  if (existsSync(configSrc)) {
+    copyFileSync(configSrc, configDst);
+    ok('Created default ralph.config.yaml -> .claude/ralph/ralph.config.yaml');
+  }
 }
 
 // Install skills via skills.sh

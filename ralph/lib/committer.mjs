@@ -166,14 +166,36 @@ function parseCommitPlan(text) {
     const commitLine = lines.find(l => l.startsWith('COMMIT:'));
     const commitSubject = commitLine ? commitLine.slice('COMMIT:'.length).trim() : '';
 
-    // DESCRIPTION bullets → body paragraphs
-    const bodyLines = [];
-    let inDesc = false;
+    // Parse sectioned body: DESCRIPTION, DECISIONS, BLOCKERS, NEXT
+    const sections = { DESCRIPTION: [], DECISIONS: [], BLOCKERS: [], NEXT: [] };
+    let currentSection = null;
     for (const line of lines) {
-      if (line === 'DESCRIPTION:') { inDesc = true; continue; }
-      if (inDesc) bodyLines.push(line);
+      if (line === 'DESCRIPTION:') { currentSection = 'DESCRIPTION'; continue; }
+      if (line === 'DECISIONS:')   { currentSection = 'DECISIONS';   continue; }
+      if (line === 'BLOCKERS:')    { currentSection = 'BLOCKERS';    continue; }
+      if (line === 'NEXT:')        { currentSection = 'NEXT';        continue; }
+      // Stop collecting on known non-body headers
+      if (line === 'FILES:' || line.startsWith('COMMIT:') || line.startsWith('REPO:')) {
+        currentSection = null; continue;
+      }
+      if (currentSection) sections[currentSection].push(line);
     }
-    const commitBody = bodyLines.join('\n').trim();
+
+    // Build commit body: description bullets, then optional enrichment sections
+    const bodyParts = [];
+    if (sections.DESCRIPTION.length > 0) {
+      bodyParts.push(sections.DESCRIPTION.join('\n'));
+    }
+    if (sections.DECISIONS.length > 0) {
+      bodyParts.push('Decisions:\n' + sections.DECISIONS.join('\n'));
+    }
+    if (sections.BLOCKERS.length > 0) {
+      bodyParts.push('Blockers:\n' + sections.BLOCKERS.join('\n'));
+    }
+    if (sections.NEXT.length > 0) {
+      bodyParts.push('Next:\n' + sections.NEXT.join('\n'));
+    }
+    const commitBody = bodyParts.join('\n\n').trim();
 
     plans.push({ name, files, commitSubject, commitBody, skip: false });
   }

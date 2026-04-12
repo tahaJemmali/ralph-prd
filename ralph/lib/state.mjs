@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, renameSync } from 'fs';
 import { resolve, dirname, basename } from 'path';
 
 /**
@@ -7,6 +7,7 @@ import { resolve, dirname, basename } from 'path';
  * @property {'implementation'|'verification'|'commit'} step - last completed step
  * @property {string} implementationOutput - result text from the implementation session
  * @property {number} taskNum           - next taskNum for the phase
+ * @property {number} [completedTaskIndex] - 0-based index of the last fully completed task within the phase (-1 = none)
  */
 
 /**
@@ -52,7 +53,10 @@ export function loadState(planPath) {
  * @param {RalphState} state
  */
 export function saveState(planPath, state) {
-  writeFileSync(stateFilePath(planPath), JSON.stringify(state, null, 2) + '\n', 'utf8');
+  const file = stateFilePath(planPath);
+  const tmp = file + '.tmp';
+  writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n', 'utf8');
+  renameSync(tmp, file);
 }
 
 /**

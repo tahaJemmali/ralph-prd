@@ -187,6 +187,29 @@ function ts() {
   return new Date().toTimeString().slice(0, 8);
 }
 
+/**
+ * Gather the last N commits (oneline) from each primary repo.
+ * Returns a markdown string suitable for injection into prompts.
+ *
+ * @param {import('./lib/config.mjs').Repo[]} repos
+ * @param {number} [count=5]
+ * @returns {string}
+ */
+function gatherRecentCommits(repos, count = 5) {
+  const primaryRepos = repos.filter(r => !r.writableOnly);
+  const sections = [];
+  for (const repo of primaryRepos) {
+    const result = spawnSync('git', ['log', `--oneline`, `-${count}`], {
+      cwd: repo.path, encoding: 'utf8',
+    });
+    const log = (result.stdout ?? '').trim();
+    if (log) {
+      sections.push(`### ${repo.name}\n\`\`\`\n${log}\n\`\`\``);
+    }
+  }
+  return sections.length > 0 ? sections.join('\n\n') : '';
+}
+
 /** Pause execution until the user presses Enter. */
 function waitForUser(message = 'Press Enter to continue…') {
   return new Promise(resolve => {
@@ -202,12 +225,17 @@ function waitForUser(message = 'Press Enter to continue…') {
  * @param {string} message
  */
 function notify(title, message) {
-  if (process.platform !== 'darwin') return;
-  const safeTitle = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  const safeMsg = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  spawnSync('osascript', ['-e', `display notification "${safeMsg}" with title "${safeTitle}"`], {
-    stdio: 'ignore',
-  });
+  if (process.platform === 'darwin') {
+    const safeTitle = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeMsg = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    spawnSync('osascript', ['-e', `display notification "${safeMsg}" with title "${safeTitle}"`], {
+      stdio: 'ignore',
+    });
+  } else if (process.platform === 'linux') {
+    spawnSync('notify-send', [title, message], { stdio: 'ignore' });
+  } else {
+    process.stderr.write('\x07');
+  }
 }
 
 /**
@@ -333,6 +361,23 @@ async function main() {
       'Phases must contain a "### What to build" or "### Acceptance criteria" subsection.'
     );
     process.exit(1);
+  }
+
+  // Resolve PRD content from the plan's `> Source PRD:` line (if present)
+  let prdContent = '';
+  const prdMatch = planContent.match(/^>\s*Source PRD:\s*(.+)$/m);
+  if (prdMatch) {
+    const prdRelPath = prdMatch[1].trim();
+    const prdAbsPath = resolve(dirname(planPath), prdRelPath);
+    if (existsSync(prdAbsPath)) {
+      prdContent = readFileSync(prdAbsPath, 'utf8');
+    } else {
+      // Try relative to plan's parent directory (docs/<id>/PRD.md next to plan.md)
+      const siblingPath = resolve(dirname(planPath), 'PRD.md');
+      if (existsSync(siblingPath)) {
+        prdContent = readFileSync(siblingPath, 'utf8');
+      }
+    }
   }
 
   // Resolve repos + config flags (validates config + git repos)
@@ -504,62 +549,199 @@ async function main() {
 
     console.log(`\n[${ts()}] Phase ${phaseNum}/${phases.length}: ${phase.title}`);
 
+    const tasks = phase.tasks ?? [{ index: 0, description: phase.body, acceptanceCriteria: phase.acceptanceCriteria }];
+    const isMultiTask = tasks.length > 1;
+
     // ── Check for mid-phase checkpoint (crash recovery) ─────────────────────
     const cp = state.checkpoint;
     const resuming = cp && cp.phaseIndex === phase.index;
     const resumeAfter = resuming ? cp.step : null;  // step already completed
+    const resumeTaskIndex = resuming ? (cp.completedTaskIndex ?? -1) : -1;
     if (resuming) {
       taskNum = cp.taskNum ?? taskNum;
       console.log(`  [${ts()}] resuming after "${resumeAfter}" (checkpoint found)`);
     }
 
-    // ── Implementation session ──────────────────────────────────────────────
+    // ── Task-level implementation + commit loop ─────────────────────────────
+    // Each task gets a focused implementation session + commit. Verification
+    // and ship-check run once per phase after all tasks are done.
     let implementationOutput = resuming ? (cp.implementationOutput ?? '') : '';
-    if (resumeAfter === null) {
-      // No checkpoint — run implementation from scratch
-      process.stdout.write(`  [${ts()}] implementation… `);
-      try {
-        implementationOutput = await runImplementation({
-          planContent,
-          phase,
-          repos,
-          safetyHeader,
-          logWriter,
-          phaseNum,
-          taskNum: taskNum++,
-          send,
-          isDryRun: false,
-          selfCommit: !iDidThis,
-        });
-        console.log('ok');
-      } catch (err) {
-        console.log('failed');
-        const msg = err instanceof PhaseExecutorError
-          ? `Phase "${err.phaseName}" failed at step "${err.step}": ${err.message}`
-          : `Unexpected error: ${err.message}`;
-        console.error(`\n${msg}`);
-        console.error(`Logs: ${logsDir}`);
-        notify('Ralph — failed', msg);
-        process.exit(1);
+    let allTasksDone = resumeAfter === 'verification' || resumeAfter === 'commit';
+
+    if (!allTasksDone) {
+      if (isMultiTask) {
+        console.log(`  [${ts()}] ${tasks.length} tasks in this phase`);
       }
 
-      // Checkpoint: implementation done — save so we can skip it on crash
-      if (onlyPhase === null) {
-        saveCheckpoint(planPath, {
-          phaseIndex: phase.index,
-          step: 'implementation',
-          implementationOutput,
-          taskNum,
-        });
-      }
-    } else {
-      console.log(`  [${ts()}] implementation… skipped (checkpoint)`);
+      for (let ti = 0; ti < tasks.length; ti++) {
+        const task = tasks[ti];
+
+        // Skip already-completed tasks (crash recovery)
+        if (ti <= resumeTaskIndex) {
+          if (isMultiTask) console.log(`  [${ts()}] task ${ti + 1}/${tasks.length}… skipped (checkpoint)`);
+          continue;
+        }
+        // If resuming on the task after the last completed one and implementation
+        // was checkpointed, skip the implementation step for this task
+        const isResumeTask = resuming && ti === resumeTaskIndex + 1;
+        const skipImplementation = isResumeTask && resumeAfter === 'implementation';
+
+        if (isMultiTask) {
+          const taskPreview = task.description.split('\n')[0].slice(0, 80);
+          console.log(`  [${ts()}] task ${ti + 1}/${tasks.length}: ${taskPreview}`);
+        }
+
+        // ── Implementation ────────────────────────────────────────────────
+        if (!skipImplementation) {
+          process.stdout.write(`  [${ts()}] implementation… `);
+          try {
+            const recentCommits = gatherRecentCommits(repos);
+            // Build a focused phase-like object for this task
+            const taskPhaseBody = isMultiTask
+              ? `${phase.body}\n\n---\n\n**Current task (${ti + 1}/${tasks.length}) — implement ONLY this task:**\n\n${task.description}`
+              : phase.body;
+
+            implementationOutput = await runImplementation({
+              planContent,
+              phase: { ...phase, body: taskPhaseBody },
+              repos,
+              safetyHeader,
+              logWriter,
+              phaseNum,
+              taskNum: taskNum++,
+              send,
+              isDryRun: false,
+              selfCommit: !iDidThis,
+              prdContent,
+              recentCommits,
+            });
+            console.log('ok');
+          } catch (err) {
+            console.log('failed');
+            const msg = err instanceof PhaseExecutorError
+              ? `Phase "${err.phaseName}" failed at step "${err.step}": ${err.message}`
+              : `Unexpected error: ${err.message}`;
+            console.error(`\n${msg}`);
+            console.error(`Logs: ${logsDir}`);
+            notify('Ralph — failed', msg);
+            process.exit(1);
+          }
+
+          // Checkpoint: task implementation done
+          if (onlyPhase === null) {
+            saveCheckpoint(planPath, {
+              phaseIndex: phase.index,
+              step: 'implementation',
+              implementationOutput,
+              taskNum,
+              completedTaskIndex: ti - 1,
+            });
+          }
+        } else {
+          console.log(`  [${ts()}] implementation… skipped (checkpoint)`);
+        }
+
+        // ── Per-task commit ───────────────────────────────────────────────
+        if (!iDidThis) {
+          const uncommitted = await scanChangedRepos(repos);
+          if (uncommitted.length === 0) {
+            console.log(`  [${ts()}] commit… done by Claude`);
+          } else {
+            console.log(`  [${ts()}] commit… Claude did not commit, falling back to structured commit`);
+            try {
+              const { nextTaskNum, anyCommitted } = await runCommitStep({
+                phase,
+                repos,
+                safetyHeader,
+                logWriter,
+                phaseNum,
+                taskNum,
+                send,
+              });
+              taskNum = nextTaskNum;
+              if (anyCommitted) {
+                console.log(`  [${ts()}] fallback commit… ok`);
+              } else {
+                console.log(`  [${ts()}] fallback commit… skipped (no changes)`);
+              }
+            } catch (err) {
+              const msg = err instanceof CommitError
+                ? `Phase "${err.phaseName}" fallback commit failed: ${err.message}`
+                : `Unexpected error during fallback commit: ${err.message}`;
+              console.error(`\n${msg}`);
+              console.error(`Logs: ${logsDir}`);
+              notify('Ralph — failed', msg);
+              process.exit(1);
+            }
+          }
+        } else {
+          if (waitForIt) {
+            await waitForUser(`\n  [wait-for-it] Task ${ti + 1}/${tasks.length} ready to commit. Press Enter to proceed… `);
+          }
+          process.stdout.write(`  [${ts()}] commit… `);
+          try {
+            const { nextTaskNum, anyCommitted } = await runCommitStep({
+              phase,
+              repos,
+              safetyHeader,
+              logWriter,
+              phaseNum,
+              taskNum,
+              send,
+            });
+            taskNum = nextTaskNum;
+            if (anyCommitted) {
+              console.log('ok');
+            } else {
+              console.log('skipped (no changes)');
+            }
+          } catch (err) {
+            console.log('failed');
+            const msg = err instanceof CommitError
+              ? `Phase "${err.phaseName}" commit failed: ${err.message}`
+              : `Unexpected error during commit: ${err.message}`;
+            console.error(`\n${msg}`);
+            console.error(`Logs: ${logsDir}`);
+            notify('Ralph — failed', msg);
+            process.exit(1);
+          }
+        }
+
+        // ── afterCommit hook (per task) ───────────────────────────────────
+        if (hooks?.afterCommit) {
+          const primaryRepo = repos.find(r => !r.writableOnly);
+          process.stdout.write(`  [${ts()}] afterCommit hook… `);
+          const hookResult = spawnSync(hooks.afterCommit, {
+            shell: true,
+            cwd: primaryRepo.path,
+            encoding: 'utf8',
+            stdio: 'inherit',
+          });
+          if (hookResult.status !== 0) {
+            const hookMsg = `afterCommit hook exited with code ${hookResult.status}: ${hooks.afterCommit}`;
+            console.error(`\n${hookMsg}`);
+            notify('Ralph — failed', hookMsg);
+            process.exit(1);
+          }
+          console.log('ok');
+        }
+
+        // Checkpoint: task fully complete
+        if (onlyPhase === null) {
+          saveCheckpoint(planPath, {
+            phaseIndex: phase.index,
+            step: 'implementation',
+            implementationOutput,
+            taskNum,
+            completedTaskIndex: ti,
+          });
+        }
+      } // end task loop
     }
 
-    // ── Verification + repair ───────────────────────────────────────────────
+    // ── Phase-level verification + repair (after all tasks) ─────────────────
     let repairCount = 0;
     if (resumeAfter === 'verification' || resumeAfter === 'commit') {
-      // Verification already passed in a previous run
       console.log(`  [${ts()}] verification… skipped (checkpoint)`);
     } else if (phase.hasVerification) {
       process.stdout.write(`  [${ts()}] verification… `);
@@ -575,6 +757,7 @@ async function main() {
           startTaskNum: taskNum,
           send,
           maxRepairs: configFlags.maxRepairs,
+          prdContent,
         }));
         console.log('ok');
       } catch (err) {
@@ -600,7 +783,6 @@ async function main() {
         }
       }
 
-      // Checkpoint: verification done
       if (onlyPhase === null) {
         saveCheckpoint(planPath, {
           phaseIndex: phase.index,
@@ -613,94 +795,27 @@ async function main() {
       console.log(`  [${ts()}] verification… skipped (no acceptance criteria)`);
     }
 
-    // ── Commit step (only when --i-did-this; otherwise Claude self-committed) ─
-    if (resumeAfter === 'commit') {
-      console.log(`  [${ts()}] commit… skipped (checkpoint)`);
-    } else if (!iDidThis) {
-      // Claude was asked to self-commit during implementation.
-      // Verify it actually happened — if uncommitted changes remain, fall back
-      // to the structured commit step so work is never silently lost.
+    // ── Phase-level final commit (verification repairs may have changed files) ─
+    if (resumeAfter !== 'commit') {
       const uncommitted = await scanChangedRepos(repos);
-      if (uncommitted.length === 0) {
-        console.log(`  [${ts()}] commit… done by Claude`);
-      } else {
-        console.log(`  [${ts()}] commit… Claude did not commit, falling back to structured commit`);
+      if (uncommitted.length > 0) {
+        process.stdout.write(`  [${ts()}] post-verification commit… `);
         try {
           const { nextTaskNum, anyCommitted } = await runCommitStep({
-            phase,
-            repos,
-            safetyHeader,
-            logWriter,
-            phaseNum,
-            taskNum,
-            send,
+            phase, repos, safetyHeader, logWriter, phaseNum, taskNum, send,
           });
           taskNum = nextTaskNum;
-          if (anyCommitted) {
-            console.log(`  [${ts()}] fallback commit… ok`);
-          } else {
-            console.log(`  [${ts()}] fallback commit… skipped (no changes)`);
-          }
+          console.log(anyCommitted ? 'ok' : 'skipped (no changes)');
         } catch (err) {
           const msg = err instanceof CommitError
-            ? `Phase "${err.phaseName}" fallback commit failed: ${err.message}`
-            : `Unexpected error during fallback commit: ${err.message}`;
+            ? `Phase "${err.phaseName}" post-verification commit failed: ${err.message}`
+            : `Unexpected error: ${err.message}`;
           console.error(`\n${msg}`);
           console.error(`Logs: ${logsDir}`);
           notify('Ralph — failed', msg);
           process.exit(1);
         }
       }
-    } else {
-      if (waitForIt) {
-        await waitForUser(`\n  [wait-for-it] Phase ${phaseNum} ready to commit. Press Enter to proceed… `);
-      }
-      process.stdout.write(`  [${ts()}] commit… `);
-      try {
-        const { nextTaskNum, anyCommitted } = await runCommitStep({
-          phase,
-          repos,
-          safetyHeader,
-          logWriter,
-          phaseNum,
-          taskNum,
-          send,
-        });
-        taskNum = nextTaskNum;
-        if (anyCommitted) {
-          console.log('ok');
-        } else {
-          console.log('skipped (no changes)');
-        }
-      } catch (err) {
-        console.log('failed');
-        const msg = err instanceof CommitError
-          ? `Phase "${err.phaseName}" commit failed: ${err.message}`
-          : `Unexpected error during commit: ${err.message}`;
-        console.error(`\n${msg}`);
-        console.error(`Logs: ${logsDir}`);
-        notify('Ralph — failed', msg);
-        process.exit(1);
-      }
-    }
-
-    // ── afterCommit hook ──────────────────────────────────────────────────────
-    if (hooks?.afterCommit) {
-      const primaryRepo = repos.find(r => !r.writableOnly);
-      process.stdout.write(`  [${ts()}] afterCommit hook… `);
-      const hookResult = spawnSync(hooks.afterCommit, {
-        shell: true,
-        cwd: primaryRepo.path,
-        encoding: 'utf8',
-        stdio: 'inherit',
-      });
-      if (hookResult.status !== 0) {
-        const hookMsg = `afterCommit hook exited with code ${hookResult.status}: ${hooks.afterCommit}`;
-        console.error(`\n${hookMsg}`);
-        notify('Ralph — failed', hookMsg);
-        process.exit(1);
-      }
-      console.log('ok');
     }
 
     // ── Ship-check ────────────────────────────────────────────────────────────

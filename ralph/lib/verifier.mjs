@@ -105,13 +105,17 @@ export function gatherRepoState(repos) {
  * @param {import('./config.mjs').Repo[]} opts.repos
  * @param {string} opts.implementationOutput - Full text from the implementation session
  * @param {string} opts.safetyHeader
+ * @param {string} [opts.prdContent=''] - Raw PRD markdown for business context
  * @returns {string}
  */
-function buildVerificationPrompt({ planContent, phase, repos, implementationOutput, safetyHeader }) {
+function buildVerificationPrompt({ planContent, phase, repos, implementationOutput, safetyHeader, prdContent = '' }) {
   const repoState = gatherRepoState(repos);
   const criteriaList = phase.acceptanceCriteria
     .map((c, i) => `  ${i + 1}. ${c}`)
     .join('\n');
+  const prdSection = prdContent
+    ? `## Source PRD (business context)\n\n${prdContent.trim()}\n\n---\n\n`
+    : '';
 
   return (
     safetyHeader +
@@ -119,6 +123,7 @@ function buildVerificationPrompt({ planContent, phase, repos, implementationOutp
       phaseTitle: phase.title,
       phaseBody: phase.body.trim(),
       criteriaList,
+      prdSection,
       planContent: planContent.trim(),
       repoState,
       implementationOutput: implementationOutput.trim(),
@@ -136,9 +141,10 @@ function buildVerificationPrompt({ planContent, phase, repos, implementationOutp
  * @param {import('./config.mjs').Repo[]} opts.repos
  * @param {string} opts.safetyHeader
  * @param {string} opts.failureNotes
+ * @param {string} [opts.prdContent=''] - Raw PRD markdown for business context
  * @returns {string}
  */
-function buildRepairPrompt({ planContent, phase, repos, safetyHeader, failureNotes }) {
+function buildRepairPrompt({ planContent, phase, repos, safetyHeader, failureNotes, prdContent = '' }) {
   const primaryRepos = repos.filter(r => !r.writableOnly);
   const writableDirs = repos.filter(r => r.writableOnly);
 
@@ -149,6 +155,9 @@ function buildRepairPrompt({ planContent, phase, repos, safetyHeader, failureNot
     ? '\nAdditional writable directories:\n' +
       writableDirs.map(r => `  - ${r.path}`).join('\n')
     : '';
+  const prdSection = prdContent
+    ? `## Source PRD (business context)\n\n${prdContent.trim()}\n\n---\n\n`
+    : '';
 
   return (
     safetyHeader +
@@ -156,6 +165,7 @@ function buildRepairPrompt({ planContent, phase, repos, safetyHeader, failureNot
       failureNotes: failureNotes.trim(),
       repoLines,
       writableLines,
+      prdSection,
       planContent: planContent.trim(),
       phaseTitle: phase.title,
       phaseBody: phase.body.trim(),
@@ -277,6 +287,7 @@ async function runSession({ stepName, phaseName, prompt, logWriter, phaseNum, ta
  * @param {number}   opts.stepIndex
  * @param {Function} opts.send
  * @param {number}  [opts.maxRepairs=3]  - Maximum repair attempts before giving up
+ * @param {string}  [opts.prdContent=''] - Raw PRD markdown for business context
  * @returns {Promise<{ nextTaskNum: number }>}
  * @throws {VerificationError} when all repair attempts are exhausted
  */
@@ -291,6 +302,7 @@ export async function runVerificationLoop({
   startTaskNum,
   send,
   maxRepairs = 3,
+  prdContent = '',
 }) {
   let taskNum = startTaskNum;
   let lastFailureNotes = '';
@@ -298,7 +310,7 @@ export async function runVerificationLoop({
   // ── Initial verification ───────────────────────────────────────────────────
 
   const initialPrompt = buildVerificationPrompt({
-    planContent, phase, repos, implementationOutput, safetyHeader,
+    planContent, phase, repos, implementationOutput, safetyHeader, prdContent,
   });
 
   const initialText = await runSession({
@@ -332,7 +344,7 @@ export async function runVerificationLoop({
   for (let attempt = 1; attempt <= maxRepairs; attempt++) {
     // Repair
     const repairPrompt = buildRepairPrompt({
-      planContent, phase, repos, safetyHeader,
+      planContent, phase, repos, safetyHeader, prdContent,
       failureNotes: lastFailureNotes || 'The verifier did not provide specific failure notes.',
     });
 
@@ -350,7 +362,7 @@ export async function runVerificationLoop({
     const reVerifyPrompt = buildVerificationPrompt({
       planContent, phase, repos,
       implementationOutput: `(repair attempt ${attempt} completed — see repair-${attempt} log)`,
-      safetyHeader,
+      safetyHeader, prdContent,
     });
 
     const reVerifyText = await runSession({

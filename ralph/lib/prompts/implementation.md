@@ -4,9 +4,9 @@ Your job is to implement exactly the phase described below and nothing more.
 ## Repositories in scope
 
 {{repoLines}}{{writableLines}}
-
+{{recentCommits}}
 ---
-
+{{prdSection}}
 ## Full plan (for context)
 
 {{planContent}}

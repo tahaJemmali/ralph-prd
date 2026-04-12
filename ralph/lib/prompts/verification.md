@@ -14,7 +14,7 @@ You are Ralph's verification agent. Your only job is to check whether the implem
 
 ---
 
-## Full plan (for context)
+{{prdSection}}## Full plan (for context)
 
 {{planContent}}
 
