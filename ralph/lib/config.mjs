@@ -29,8 +29,10 @@ function isGitRepo(dirPath) {
  * @property {number}      maxRepairs     - Max repair attempts per phase before hard-stopping (default 3)
  * @property {number|null} onlyPhase      - When set, only this 1-based phase index is run (force re-run)
  * @property {string}      logLevel       - "none" | "necessary" | "dump" (default "necessary")
- * @property {boolean}     skipShipCheck       - Skip the post-commit ship-check step for every phase
- * @property {boolean}     skipOnVerifyFail    - Skip verification and continue instead of hard-stopping when all repair attempts fail
+ * @property {boolean}     skipShipCheck          - Skip the post-commit ship-check step for every phase
+ * @property {number}      shipCheckRetries       - Max ship-check attempts per phase before giving up (default 1)
+ * @property {boolean}     skipOnShipCheckFail    - When true, log and continue after all retries fail instead of hard-stopping
+ * @property {boolean}     skipOnVerifyFail       - Skip verification and continue instead of hard-stopping when all repair attempts fail
  */
 
 /**
@@ -61,7 +63,7 @@ function isGitRepo(dirPath) {
 function parseConfigYaml(content) {
   const repos = [];
   const writableDirs = [];
-  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary', skipShipCheck: false, skipOnVerifyFail: false };
+  const flags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, logLevel: 'necessary', skipShipCheck: false, shipCheckRetries: 1, skipOnShipCheckFail: true, skipOnVerifyFail: false };
   const hooks = { afterCommit: null };
   let section = null;
   let current = null;
@@ -116,9 +118,9 @@ function parseConfigYaml(content) {
         const [, key, val] = match;
         if (!(key in flags)) continue;
         const trimmedVal = val.trim();
-        if (key === 'maxRepairs') {
+        if (key === 'maxRepairs' || key === 'shipCheckRetries') {
           const n = parseInt(trimmedVal, 10);
-          if (!isNaN(n) && n > 0) flags.maxRepairs = n;
+          if (!isNaN(n) && n > 0) flags[key] = n;
         } else if (key === 'onlyPhase') {
           const n = parseInt(trimmedVal, 10);
           if (!isNaN(n) && n > 0) flags.onlyPhase = n;
@@ -161,7 +163,7 @@ function parseConfigYaml(content) {
  */
 export function resolveRepos(runnerDir) {
   const configPath = join(runnerDir, CONFIG_FILENAME);
-  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false, skipOnVerifyFail: false };
+  const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false, shipCheckRetries: 1, skipOnShipCheckFail: true, skipOnVerifyFail: false };
   const defaultHooks = { afterCommit: null };
 
   if (!existsSync(configPath)) {
