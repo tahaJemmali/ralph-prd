@@ -6,42 +6,23 @@ Ralph takes a markdown plan file, breaks it into phases and tasks, and executes 
 
 ## Install
 
-One command installs Ralph and all skills into your project's `.claude/` directory:
-
 ```bash
-# Using npx (recommended)
-npx ralph-prd
-
-# Or using curl
-curl -fsSL https://raw.githubusercontent.com/tahaJemmali/ralph-prd/main/install.sh | bash
-
-# Or clone and run locally
-git clone https://github.com/tahaJemmali/ralph-prd.git
-cd your-project && ../ralph-prd/install.sh
+npx ralph-prd init
 ```
 
-This installs:
-- `.claude/ralph/` — the phased runner
-- `.claude/skills/` — 7 Claude Code skills fetched from [`tahaJemmali/skills`](https://github.com/tahaJemmali/skills) via `npx skills add`
-- On first install, adds `.claude/ralph/` and `.claude/skills/` to `.gitignore` (skipped if `.claude/` already exists, so shared setups are respected)
+This installs skills to `.claude/skills/` and scaffolds a config file. Ralph itself runs directly from the npm package — no files are copied to your project.
+
+Skills are fetched from [`tahaJemmali/skills`](https://github.com/tahaJemmali/skills). Installation retries automatically (3 attempts) and falls back to cached skills on network failure.
 
 ### Updating
 
-To update Ralph and re-fetch skills, just re-run the install command:
-
 ```bash
-npx ralph-prd
+npx ralph-prd init
 ```
 
-Your `ralph.config.yaml` is preserved across updates — only the runner and skills are refreshed.
+Re-running init re-fetches skills. Your `ralph.config.yaml` is preserved.
 
-Ralph also checks for updates automatically on every run. If a newer version is available, you'll see a notice in the console output.
-
-To update only the skills without reinstalling:
-
-```bash
-node .claude/ralph/ralph-claude.mjs --update-skills
-```
+Ralph also checks for updates automatically on every run.
 
 ## Requirements
 
@@ -70,7 +51,7 @@ Run `/prd-to-plan`. Claude reads the PRD, identifies durable architectural decis
 ### 4. Execute with Ralph
 
 ```bash
-node .claude/ralph/ralph-claude.mjs docs/<feature>/plan.md
+npx ralph-prd run docs/<feature>/plan.md
 ```
 
 Ralph runs each phase through Claude:
@@ -93,38 +74,42 @@ Run `/ship-check` to validate the final result against your project's documented
 ## CLI Reference
 
 ```bash
-node .claude/ralph/ralph-claude.mjs <plan-file.md> [OPTIONS]
+npx ralph-prd init                     Install skills and scaffold config
+npx ralph-prd run <plan.md> [OPTIONS]  Execute a plan
+npx ralph-prd --version                Print version
 
-Options:
-  --dry-run          Preview all phases without executing
-  --reset            Delete state and restart from Phase 1
-  --only-phase N     Force re-run phase N (1-based)
-  --i-did-this       Skip Claude self-commit; run separate commit step
-  --send-it          Push branch + open PR when all phases complete
-  --wait-for-it           Pause before each commit for review
-  --skip-ship-check            Skip the post-commit ship-check step entirely
-  --ship-check-retries=N       Retry ship-check up to N times per phase before giving up (default 1)
-  --skip-on-ship-check-fail    Log and continue when all ship-check retries fail instead of hard-stopping
-  --skip-on-verify-fail        Skip verification and continue instead of hard-stopping when all repair attempts fail
-  --log-level=LEVEL            Set log level: none | necessary | dump (default: necessary)
-  --update-skills         Re-fetch skills from tahaJemmali/skills and exit
-  --version, -v      Print installed version and exit
+Run options:
+  --dry-run              Preview all phases without executing
+  --reset                Delete state and restart from Phase 1
+  --only-phase N         Force re-run phase N (1-based)
+  --i-did-this           Skip Claude self-commit; run separate commit step
+  --send-it              Push branch + open PR when all phases complete
+  --wait-for-it          Pause before each commit for review
+  --skip-ship-check      Skip the post-commit ship-check step entirely
+  --ship-check-retries=N Retry ship-check up to N times (default 1)
+  --skip-on-ship-check-fail  Log and continue when ship-check fails
+  --skip-on-verify-fail  Skip verification when all repair attempts fail
+  --log-level=LEVEL      none | necessary | dump (default: necessary)
+  --update-skills        Re-fetch skills and exit
 ```
 
 ### Examples
 
 ```bash
 # Resume from last incomplete phase
-node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md
+npx ralph-prd run docs/auth-rework/plan.md
 
 # Preview the plan
-node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --dry-run
+npx ralph-prd run docs/auth-rework/plan.md --dry-run
 
 # Re-run only Phase 3
-node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --only-phase 3
+npx ralph-prd run docs/auth-rework/plan.md --only-phase 3
 
 # Ship it: run all phases, push, open PR
-node .claude/ralph/ralph-claude.mjs docs/auth-rework/plan.md --send-it
+npx ralph-prd run docs/auth-rework/plan.md --send-it
+
+# Legacy invocation (still works)
+npx ralph-prd docs/auth-rework/plan.md
 ```
 
 ## Commit Messages
@@ -165,9 +150,9 @@ The **Decisions**, **Blockers**, and **Next** sections are optional — included
 
 Skills are fetched from [`tahaJemmali/skills`](https://github.com/tahaJemmali/skills) during install. You can also install or update them independently with `npx skills add tahaJemmali/skills`.
 
-## Multi-Repo Support
+## Configuration
 
-Create `ralph.config.yaml` in `.claude/ralph/` for monorepo setups:
+Create `.claude/ralph.config.yaml` for multi-repo setups or to customize flags:
 
 ```yaml
 repos:
@@ -191,7 +176,7 @@ hooks:
   afterCommit: npm test
 ```
 
-If the config file exists but has no `repos:` entries, Ralph falls back to using the current working directory.
+Config lookup order: `.claude/ralph.config.yaml` (canonical) → `.claude/ralph/ralph.config.yaml` (legacy). If no config exists, Ralph uses the current directory as the single repo.
 
 ## Plan File Format
 
@@ -232,6 +217,7 @@ The "What to build" section is parsed into individual tasks. Numbered items (`1.
 ## How It Works
 
 - **Zero dependencies** — pure Node.js, no npm packages
+- **Runs from package** — no files copied to your project (only skills + config)
 - **Task-level execution** — phases are broken into focused tasks, each with its own implementation + commit cycle
 - **PRD context** — every session gets the source PRD and recent git history
 - **Enriched commits** — decisions, blockers, and notes carry knowledge between tasks
@@ -240,7 +226,16 @@ The "What to build" section is parsed into individual tasks. Numbered items (`1.
 - **Live streaming** — see Claude's tool calls, thinking, and output in real-time
 - **Full logging** — JSONL logs of every Claude CLI event per phase
 - **Cross-platform notifications** — macOS, Linux (notify-send), and terminal bell fallback
+- **Resilient installs** — retries skill installation, falls back to cached skills on network failure
 - **Safety** — optional `blocked-commands.txt` and `blocked-paths.txt` restrict what Claude can do
+
+## Public API
+
+ralph-prd exports a stable API for use by orchestrators like [ralph-prd-afk](https://github.com/tahaJemmali/ralph-prd-afk):
+
+```javascript
+import { send, preflight, getCumulativeCost } from 'ralph-prd/transport';
+```
 
 ## Acknowledgments
 
