@@ -95,20 +95,17 @@ if [ -f "$SOURCE_DIR/package.json" ]; then
   info "Stamped version: $VERSION"
 fi
 
-# Only add to .gitignore on first install — if .claude/ already existed,
-# the user may be sharing it via git intentionally.
-if [ "$IS_FIRST_INSTALL" = true ]; then
-  GITIGNORE="$PROJECT_ROOT/.gitignore"
-  for entry in ".claude/ralph/" ".claude/skills/"; do
-    if [ ! -f "$GITIGNORE" ] || ! grep -qxF "$entry" "$GITIGNORE"; then
-      if [ ! -f "$GITIGNORE" ] || ! grep -qF "# ralph-prd" "$GITIGNORE"; then
-        printf '\n# ralph-prd (installed via install.sh)\n' >> "$GITIGNORE"
-      fi
-      echo "$entry" >> "$GITIGNORE"
-      ok "Added $entry to .gitignore"
+# Add required entries to .gitignore (idempotent — skips entries already present).
+GITIGNORE="$PROJECT_ROOT/.gitignore"
+for entry in ".claude/ralph/" ".claude/skills/" "logs/"; do
+  if [ ! -f "$GITIGNORE" ] || ! grep -qxF "$entry" "$GITIGNORE"; then
+    if [ ! -f "$GITIGNORE" ] || ! grep -qF "# ralph-prd" "$GITIGNORE"; then
+      printf '\n# ralph-prd (installed via install.sh)\n' >> "$GITIGNORE"
     fi
-  done
-fi
+    echo "$entry" >> "$GITIGNORE"
+    ok "Added $entry to .gitignore"
+  fi
+done
 
 # Summary
 echo ""

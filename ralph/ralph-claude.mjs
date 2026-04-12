@@ -363,7 +363,7 @@ async function main() {
   // Derive branch name and log directory
   const branch = deriveBranchName(planPath);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const logsBaseDir = resolve(__dirname, 'logs');
+  const logsBaseDir = resolve(__dirname, '../..', 'logs');
   let logsDir;
   if (isDryRun) {
     // Dry runs always get a fresh folder
