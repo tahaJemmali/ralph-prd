@@ -24,18 +24,19 @@ describe('runCommitStep', () => {
     let sendCalled = false;
     const send = async () => { sendCalled = true; return ''; };
 
-    const { anyCommitted, nextStepIndex } = await runCommitStep({
+    const { anyCommitted, nextTaskNum } = await runCommitStep({
       phase: PHASE,
       repos: [{ name: 'r', path: repoDir }],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 3,
+      phaseNum: 1,
+      taskNum: 3,
       send,
     });
 
     assert.equal(anyCommitted, false);
     assert.equal(sendCalled, false);
-    assert.equal(nextStepIndex, 3); // unchanged when skipped
+    assert.equal(nextTaskNum, 3); // unchanged when skipped
   });
 
   test('changed repo → commit session runs, file is committed', async () => {
@@ -53,7 +54,8 @@ describe('runCommitStep', () => {
       repos: [{ name: 'myrepo', path: repoDir }],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
     });
 
@@ -75,7 +77,8 @@ describe('runCommitStep', () => {
       repos: [{ name: 'myrepo', path: repoDir }],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
     });
 
@@ -98,7 +101,8 @@ describe('runCommitStep', () => {
       repos: [{ name: 'r', path: repoDir }],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
     });
 
@@ -125,7 +129,8 @@ describe('runCommitStep', () => {
       ],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
     });
 
@@ -154,7 +159,8 @@ describe('runCommitStep', () => {
         repos: [{ name: 'r', path: repoDir }],
         safetyHeader: '',
         logWriter: lw,
-        stepIndex: 1,
+        phaseNum: 1,
+        taskNum: 1,
         send,
       }),
       (err) => {
@@ -165,7 +171,7 @@ describe('runCommitStep', () => {
     );
   });
 
-  test('nextStepIndex increments by 1 after commit session', async () => {
+  test('nextTaskNum increments by 1 after commit session', async () => {
     const repoDir = makeTempRepo();
     writeFileSync(join(repoDir, 'f.txt'), 'f\n');
 
@@ -175,16 +181,17 @@ describe('runCommitStep', () => {
       'REPO: r\nFILES:\n- f.txt\nCOMMIT: ralph: commit f',
     ]);
 
-    const { nextStepIndex } = await runCommitStep({
+    const { nextTaskNum } = await runCommitStep({
       phase: PHASE,
       repos: [{ name: 'r', path: repoDir }],
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 5,
+      phaseNum: 1,
+      taskNum: 5,
       send,
     });
 
-    assert.equal(nextStepIndex, 6);
+    assert.equal(nextTaskNum, 6);
   });
 
 });

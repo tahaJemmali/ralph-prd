@@ -19,6 +19,7 @@
  */
 
 import { spawn, spawnSync } from 'child_process';
+import { relative } from 'path';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -70,9 +71,8 @@ function resolveCLI() {
 /** Strip the absolute repo prefix so paths are readable. */
 function shortPath(p) {
   if (!p) return '';
-  // Try to trim everything up to and including the repo root segment
-  const idx = p.indexOf('/mazadLive-backend/');
-  return idx !== -1 ? p.slice(idx + '/mazadLive-backend/'.length) : p;
+  const rel = relative(process.cwd(), p);
+  return rel.startsWith('..') ? p : rel;
 }
 
 /**

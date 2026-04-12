@@ -158,16 +158,28 @@ function parseConfigYaml(content) {
  * Throws an Error with a human-readable message on any validation failure so
  * the caller can print it and exit before any phase begins.
  *
- * @param {string} runnerDir - Absolute path of the directory containing ralph-claude.mjs
+ * @param {string} runnerDir - Absolute path of the directory containing ralph-claude.mjs.
+ *   Also searches process.cwd()/.claude/ for config (new canonical location).
  * @returns {{ repos: Repo[], flags: RalphFlags, hooks: RalphHooks }}
  */
 export function resolveRepos(runnerDir) {
-  const configPath = join(runnerDir, CONFIG_FILENAME);
+  // Config lookup chain: new canonical path → legacy path → no config
+  const cwd = process.cwd();
+  const canonicalPath = join(cwd, '.claude', CONFIG_FILENAME);
+  const legacyPath = join(runnerDir, CONFIG_FILENAME);
+  const configPath = existsSync(canonicalPath) ? canonicalPath
+    : existsSync(legacyPath) ? legacyPath
+    : null;
+
+  if (configPath === legacyPath && existsSync(legacyPath)) {
+    console.log(`[ralph] Config loaded from legacy path: ${legacyPath}`);
+    console.log('[ralph] Move to .claude/ralph.config.yaml for the new canonical location.');
+  }
+
   const defaultFlags = { iDidThis: false, sendIt: false, waitForIt: false, maxRepairs: 3, onlyPhase: null, skipShipCheck: false, shipCheckRetries: 1, skipOnShipCheckFail: true, skipOnVerifyFail: false };
   const defaultHooks = { afterCommit: null };
 
-  if (!existsSync(configPath)) {
-    const cwd = process.cwd();
+  if (!configPath) {
     if (!existsSync(cwd)) {
       throw new Error(`Default repo (cwd) does not exist: ${cwd}`);
     }

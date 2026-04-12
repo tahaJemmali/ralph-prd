@@ -104,7 +104,8 @@ describe('runImplementation', () => {
       repos: REPOS,
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
       isDryRun: false,
     });
@@ -117,7 +118,6 @@ describe('runImplementation', () => {
     const lw = new LogWriter(dir, 'dump');
     const send = makeFakeSend(['done']);
 
-    const step = lw.openStep(1, 'implementation', PHASE.title);
     // Run through runImplementation and check a file was created
     await runImplementation({
       planContent: '# Plan',
@@ -125,14 +125,15 @@ describe('runImplementation', () => {
       repos: REPOS,
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
       isDryRun: false,
     });
 
-    // The log file for step 1 should exist
+    // The log file for phase 1 implementation should exist
     const { join } = await import('path');
-    const logFile = join(dir, 'step-1-implementation.log');
+    const logFile = join(dir, 'phase-1-implementation.log');
     assert.ok(existsSync(logFile));
     const content = readFileSync(logFile, 'utf8');
     assert.ok(content.includes('Phase 1: CLI Shell'));
@@ -151,7 +152,8 @@ describe('runImplementation', () => {
       repos: REPOS,
       safetyHeader: '',
       logWriter: lw,
-      stepIndex: 1,
+      phaseNum: 1,
+      taskNum: 1,
       send,
       isDryRun: true,
     });
@@ -171,7 +173,8 @@ describe('runImplementation', () => {
         repos: REPOS,
         safetyHeader: '',
         logWriter: lw,
-        stepIndex: 1,
+        phaseNum: 1,
+        taskNum: 1,
         send,
         isDryRun: false,
       }),
@@ -199,14 +202,15 @@ describe('runImplementation', () => {
         repos: REPOS,
         safetyHeader: '',
         logWriter: lw,
-        stepIndex: 1,
+        phaseNum: 1,
+        taskNum: 1,
         send,
         isDryRun: false,
       });
     } catch { /* expected */ }
 
     const { join } = await import('path');
-    const logFile = join(dir, 'step-1-implementation.log');
+    const logFile = join(dir, 'phase-1-implementation.log');
     assert.ok(existsSync(logFile));
     const content = readFileSync(logFile, 'utf8');
     assert.ok(content.includes('partial'));

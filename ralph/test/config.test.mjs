@@ -76,10 +76,12 @@ describe('config', () => {
     assert.equal(writableDirs[0].path, docsDir);
   });
 
-  test('config with empty repos section → throws', () => {
+  test('config with empty repos section → falls back to cwd', () => {
     const configDir = makeTempDir();
     writeFileSync(join(configDir, 'ralph.config.yaml'), 'repos:\n', 'utf8');
-    assert.throws(() => resolveRepos(configDir));
+    const { repos } = resolveRepos(configDir);
+    assert.equal(repos.length, 1);
+    assert.equal(repos[0].path, process.cwd());
   });
 
   test('no config file → flags all default to false', () => {

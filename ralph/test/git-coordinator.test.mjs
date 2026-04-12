@@ -53,13 +53,17 @@ describe('prepareBranch', () => {
 
   test('no-op when already on the target branch', async () => {
     const repoPath = makeTempRepo();
+    // Switch to a non-protected branch first (default branch may be main/master)
+    execSync('git checkout -b feature-test', { cwd: repoPath, stdio: 'pipe' });
+
+    const repos = [{ name: 'r', path: repoPath }];
+    // Should not throw — already on feature-test
+    await prepareBranch(repos, 'feature-test');
+
     const current = execSync('git rev-parse --abbrev-ref HEAD', {
       cwd: repoPath, encoding: 'utf8',
     }).trim();
-
-    const repos = [{ name: 'r', path: repoPath }];
-    // Should not throw
-    await prepareBranch(repos, current);
+    assert.equal(current, 'feature-test');
   });
 
   test('throws GitCoordinatorError for invalid repo path', async () => {

@@ -82,7 +82,6 @@ if (savedConfig !== null) {
 }
 
 // Install skills via skills.sh
-info('Installing skills from tahaJemmali/skills…');
 const REQUIRED_SKILLS = [
   'grill-me',
   'write-a-prd',
@@ -92,15 +91,39 @@ const REQUIRED_SKILLS = [
   'review-changes',
   'repo-doc-maintainer',
 ];
-const skillsResult = spawnSync(
-  'npx',
-  ['skills', 'add', 'tahaJemmali/skills', ...REQUIRED_SKILLS.flatMap(s => ['--skill', s]), '-a', 'claude-code', '-y'],
-  { cwd: projectRoot, stdio: 'inherit', encoding: 'utf8' },
-);
-if (skillsResult.status !== 0) {
-  fail('Skills installation failed — aborting. ralph-prd requires all skills to be installed.\n  Retry by running: npx ralph-prd');
+
+info('Installing skills from tahaJemmali/skills…');
+let skillsOk = false;
+for (let attempt = 1; attempt <= 3; attempt++) {
+  const skillsResult = spawnSync(
+    'npx',
+    ['skills', 'add', 'tahaJemmali/skills', ...REQUIRED_SKILLS.flatMap(s => ['--skill', s]), '-a', 'claude-code', '-y'],
+    { cwd: projectRoot, stdio: 'inherit', encoding: 'utf8' },
+  );
+  if (skillsResult.status === 0) {
+    skillsOk = true;
+    break;
+  }
+  if (attempt < 3) {
+    info(`Skills install attempt ${attempt} failed, retrying in 2s…`);
+    spawnSync('sleep', ['2']);
+  }
 }
-ok('Installed skills -> .claude/skills/');
+
+if (skillsOk) {
+  ok('Installed skills -> .claude/skills/');
+} else {
+  // Check if skills already exist from a previous install
+  const skillsDir = resolve(projectRoot, '.claude', 'skills');
+  const allPresent = REQUIRED_SKILLS.every(s =>
+    existsSync(resolve(skillsDir, s, 'SKILL.md'))
+  );
+  if (allPresent) {
+    info('Skills install failed but existing skills found — continuing with cached skills.');
+  } else {
+    fail('Skills installation failed after 3 attempts — aborting.\n  Retry: npx ralph-prd');
+  }
+}
 
 const gitignorePath = resolve(projectRoot, '.gitignore');
 let gitignoreContent = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';

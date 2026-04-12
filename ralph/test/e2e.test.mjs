@@ -40,28 +40,28 @@ Create a hello.txt file.
  * Run one complete phase (implementation → verification → commit → mark state).
  * Returns { success, error } instead of calling process.exit().
  */
-async function runPhase({ phase, planPath, planContent, repos, logWriter, send, stepIndex = 1 }) {
+async function runPhase({ phase, planPath, planContent, repos, logWriter, send, phaseNum = 1, taskNum = 1 }) {
   const safetyHeader = '';
-  let si = stepIndex;
+  let si = taskNum;
 
   // Implementation
   const implOutput = await runImplementation({
     planContent, phase, repos, safetyHeader,
-    logWriter, stepIndex: si++, send, isDryRun: false,
+    logWriter, phaseNum, taskNum: si++, send, isDryRun: false,
   });
 
   // Verification (if applicable)
   if (phase.hasVerification) {
-    ({ nextStepIndex: si } = await runVerificationLoop({
+    ({ nextTaskNum: si } = await runVerificationLoop({
       planContent, phase, repos, safetyHeader,
       implementationOutput: implOutput,
-      logWriter, stepIndex: si, send,
+      logWriter, phaseNum, startTaskNum: si, send,
     }));
   }
 
   // Commit
-  const { nextStepIndex: nextSi } = await runCommitStep({
-    phase, repos, safetyHeader, logWriter, stepIndex: si, send,
+  const { nextTaskNum: nextSi } = await runCommitStep({
+    phase, repos, safetyHeader, logWriter, phaseNum, taskNum: si, send,
   });
   si = nextSi;
 
@@ -69,7 +69,7 @@ async function runPhase({ phase, planPath, planContent, repos, logWriter, send, 
   if (phase.hasVerification) mutateCheckboxes(planPath, phase);
   markPhaseComplete(planPath, phase.index);
 
-  return { nextStepIndex: si };
+  return { nextTaskNum: si };
 }
 
 describe('e2e: full single-phase run with fake transport', () => {
@@ -116,9 +116,9 @@ describe('e2e: full single-phase run with fake transport', () => {
     assert.ok(gitLog.includes('ralph:'), 'git log should contain ralph commit');
 
     // Logs: step files exist
-    assert.ok(existsSync(join(logDir, 'step-1-implementation.log')));
-    assert.ok(existsSync(join(logDir, 'step-2-verification.log')));
-    assert.ok(existsSync(join(logDir, 'step-3-commit.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-implementation.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-verification.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-commit.log')));
   });
 
 });
@@ -173,10 +173,10 @@ describe('e2e: repair-loop run (fail → repair → pass)', () => {
     assert.ok(state.completedPhases.includes(0));
 
     // All session logs exist
-    assert.ok(existsSync(join(logDir, 'step-1-implementation.log')));
-    assert.ok(existsSync(join(logDir, 'step-2-verification.log')));
-    assert.ok(existsSync(join(logDir, 'step-3-repair.log')));
-    assert.ok(existsSync(join(logDir, 'step-4-re-verification.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-implementation.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-verification.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-repair-1.log')));
+    assert.ok(existsSync(join(logDir, 'phase-1-re-verification-1.log')));
   });
 
 });
@@ -227,9 +227,9 @@ describe('e2e: double-fail run exits non-zero and preserves logs', () => {
     assert.ok(!state.completedPhases.includes(0), 'phase should not be marked complete');
 
     // Logs must be preserved on disk
-    assert.ok(existsSync(join(logDir, 'step-1-implementation.log')), 'impl log preserved');
-    assert.ok(existsSync(join(logDir, 'step-2-verification.log')), 'verify log preserved');
-    assert.ok(existsSync(join(logDir, 'step-3-repair.log')), 'repair log preserved');
+    assert.ok(existsSync(join(logDir, 'phase-1-implementation.log')), 'impl log preserved');
+    assert.ok(existsSync(join(logDir, 'phase-1-verification.log')), 'verify log preserved');
+    assert.ok(existsSync(join(logDir, 'phase-1-repair-1.log')), 'repair log preserved');
   });
 
   test('resume from first incomplete phase after partial failure', async () => {
