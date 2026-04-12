@@ -134,14 +134,6 @@ const sendItArg = args.includes('--send-it');
 const waitForItArg = args.includes('--wait-for-it');
 // Skip the post-commit ship-check step. Use when you don't have a ship-check skill.
 const skipShipCheckArg = args.includes('--skip-ship-check');
-// Max ship-check attempts per phase before giving up.
-const shipCheckRetriesArg = (() => {
-  const eqArg = args.find(a => a.startsWith('--ship-check-retries='));
-  if (eqArg) return parseInt(eqArg.slice('--ship-check-retries='.length), 10);
-  return null;
-})();
-// Log and continue after all ship-check retries fail instead of hard-stopping.
-const skipOnShipCheckFailArg = args.includes('--skip-on-ship-check-fail');
 // Skip verification and continue (rather than hard-stop) when all repair attempts fail.
 const skipOnVerifyFailArg = args.includes('--skip-on-verify-fail');
 // Run only one specific phase (1-based), force re-run even if already complete.
@@ -164,7 +156,7 @@ const logLevelArg = (() => {
 if (!planArg) {
   console.error(
     'Usage: node ralph-claude.mjs <plan-file.md> ' +
-    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--ship-check-retries=N|--skip-on-ship-check-fail|--skip-on-verify-fail|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
+    '[--reset|--dry-run|--i-did-this|--send-it|--wait-for-it|--skip-ship-check|--skip-on-verify-fail|--only-phase N|--log-level none|necessary|dump|--update-skills|--version]'
   );
   process.exit(1);
 }
@@ -359,10 +351,7 @@ async function main() {
   const sendIt = sendItArg || configFlags.sendIt;
   const waitForIt = waitForItArg || configFlags.waitForIt;
   const skipShipCheck = skipShipCheckArg || configFlags.skipShipCheck;
-  const shipCheckRetries = (shipCheckRetriesArg !== null && !isNaN(shipCheckRetriesArg) && shipCheckRetriesArg > 0)
-    ? shipCheckRetriesArg
-    : (configFlags.shipCheckRetries ?? 1);
-  const skipOnShipCheckFail = skipOnShipCheckFailArg || configFlags.skipOnShipCheckFail;
+  const skipOnShipCheckFail = configFlags.skipOnShipCheckFail;
   const skipOnVerifyFail = skipOnVerifyFailArg || configFlags.skipOnVerifyFail;
   const onlyPhase = onlyPhaseArg ?? configFlags.onlyPhase ?? null;
   const logLevel = logLevelArg ?? configFlags.logLevel ?? 'necessary';

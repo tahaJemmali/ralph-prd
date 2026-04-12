@@ -1,6 +1,6 @@
 {
   "name": "ralph-prd",
-  "version": "1.0.10",
+  "version": "1.0.9",
   "description": "AI-powered phased implementation runner for Claude Code — from PRD to shipped code",
   "bin": {
     "ralph-prd": "./bin/install.mjs"
