@@ -325,7 +325,7 @@ export async function runCommitStep({
   const changedRepos = await scanChangedRepos(repos);
 
   if (changedRepos.length === 0) {
-    return { nextStepIndex: si, anyCommitted: false };
+    return { nextTaskNum: si, anyCommitted: false };
   }
 
   // Build and run the commit session
