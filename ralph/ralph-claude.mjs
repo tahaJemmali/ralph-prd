@@ -225,6 +225,8 @@ function waitForUser(message = 'Press Enter to continue…') {
  * @param {string} message
  */
 function notify(title, message) {
+  const project = basename(process.cwd());
+  title = `${title} [${project}]`;
   if (process.platform === 'darwin') {
     const safeTitle = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     const safeMsg = message.replace(/\\/g, '\\\\').replace(/"/g, '\\"');

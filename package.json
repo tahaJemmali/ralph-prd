@@ -1,6 +1,6 @@
 {
   "name": "ralph-prd",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "type": "module",
   "description": "AI-powered phased implementation runner for Claude Code — from PRD to shipped code",
   "bin": {
