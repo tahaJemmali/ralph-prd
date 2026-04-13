@@ -881,9 +881,7 @@ async function main() {
           } else {
             console.log('failed');
             console.error(`\nUnexpected error during ship-check: ${err.message}`);
-            console.error(`Logs: ${logsDir}`);
-            notify('Ralph — failed', `Ship-check failed for "${phase.title}"`);
-            process.exit(1);
+            // Don't exit — let the retry loop and skipOnShipCheckFail handle it
           }
 
           if (attempt < maxAttempts) {
