@@ -26,7 +26,7 @@ import { relative } from 'path';
 /** Timeout for the preflight check only — should always be fast. */
 const PREFLIGHT_TIMEOUT_MS = 30_000;
 
-/** Default timeout for send() — 20 minutes per CLI session. */
+/** Default timeout for send() — 20 minutes of inactivity per CLI session. */
 const SEND_TIMEOUT_MS = 20 * 60 * 1000;
 
 const CLI_FLAGS = [
@@ -371,16 +371,24 @@ export async function send(prompt, { onChunk, signal, timeoutMs } = {}) {
     const child = spawn(cliBin, CLI_FLAGS, { stdio: ['pipe', 'pipe', 'pipe'] });
 
     // ── Timeout: kills the CLI if no output arrives within the timeout window ──
-    const timer = setTimeout(() => {
+    // This is a no-activity timeout, not a hard cap — it resets on every stdout
+    // chunk so long-running tasks that keep producing output are never killed.
+    let timer = setTimeout(onTimeout, timeout);
+    function onTimeout() {
       child.kill();
       done(reject, new TransportError(
-        `\`claude\` CLI timed out after ${(timeout / 1000).toFixed(0)}s with no response. ` +
+        `\`claude\` CLI timed out after ${(timeout / 1000).toFixed(0)}s with no output. ` +
         'The session may have hung or lost connectivity.',
         'timeout'
       ));
-    }, timeout);
+    }
+    function resetTimer() {
+      clearTimeout(timer);
+      timer = setTimeout(onTimeout, timeout);
+    }
 
     child.stdout.on('data', (chunk) => {
+      resetTimer();
       lineBuffer += chunk.toString();
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop() ?? '';
