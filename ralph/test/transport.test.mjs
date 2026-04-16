@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { TransportError, getCumulativeCost, _addCost, _resetCost } from '../lib/transport.mjs';
+import { TransportError, getCumulativeCost, _addCost, _resetCost, isRetryableStderr } from '../lib/transport.mjs';
 
 describe('TransportError', () => {
 
@@ -20,11 +20,50 @@ describe('TransportError', () => {
     assert.equal(err.type, 'auth');
   });
 
-  test('type can be auth | timeout | response | network | parse', () => {
-    for (const type of ['auth', 'timeout', 'response', 'network', 'parse']) {
+  test('type can be auth | timeout | response | network | parse | empty_response | rate_limit', () => {
+    for (const type of ['auth', 'timeout', 'response', 'network', 'parse', 'empty_response', 'rate_limit']) {
       const err = new TransportError('msg', type);
       assert.equal(err.type, type);
     }
+  });
+
+});
+
+
+describe('isRetryableStderr', () => {
+
+  test('returns true for rate_limit_error', () => {
+    assert.ok(isRetryableStderr('{"type":"error","error":{"type":"rate_limit_error"}}'));
+  });
+
+  test('returns true for overloaded_error', () => {
+    assert.ok(isRetryableStderr('overloaded_error: API is temporarily overloaded'));
+  });
+
+  test('returns true for econnreset', () => {
+    assert.ok(isRetryableStderr('Error: read ECONNRESET'));
+  });
+
+  test('returns true for socket hang up', () => {
+    assert.ok(isRetryableStderr('Error: socket hang up'));
+  });
+
+  test('returns false for unrelated stderr', () => {
+    assert.ok(!isRetryableStderr('SyntaxError: Unexpected token'));
+  });
+
+  test('returns false for empty string', () => {
+    assert.ok(!isRetryableStderr(''));
+  });
+
+  test('returns false for null/undefined', () => {
+    assert.ok(!isRetryableStderr(null));
+    assert.ok(!isRetryableStderr(undefined));
+  });
+
+  test('is case-insensitive', () => {
+    assert.ok(isRetryableStderr('RATE_LIMIT_ERROR'));
+    assert.ok(isRetryableStderr('Socket Hang Up'));
   });
 
 });

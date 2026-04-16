@@ -60,6 +60,29 @@ export class TransportError extends Error {
   }
 }
 
+// ─── Retryable stderr detection ───────────────────────────────────────────────
+//
+// Claude CLI writes structured JSON error types to stderr on API failures.
+// These are machine-readable strings that never appear in response prose,
+// so matching them on stderr is safe.
+// Source: https://docs.anthropic.com/en/api/errors
+
+const RETRYABLE_STDERR_TYPES = [
+  'rate_limit_error',      // 429 — account rate limit
+  'overloaded_error',      // 529 — API overloaded
+  'authentication_error',  // 401 — auth/token issue
+  'api_error',             // 500 — internal API error
+  'timeout_error',         // 504 — request timed out
+  'econnrefused',
+  'econnreset',
+  'socket hang up',
+];
+
+export function isRetryableStderr(text) {
+  const lower = (text ?? '').toLowerCase();
+  return RETRYABLE_STDERR_TYPES.some(t => lower.includes(t));
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveCLI() {
@@ -285,10 +308,15 @@ export async function preflight() {
       if (code === 0 || code === null) {
         resolve();
       } else {
+        // Distinguish rate limit / transient API errors from auth failures so
+        // callers can retry instead of treating it as a credential problem.
+        const errorType = isRetryableStderr(stderr) ? 'rate_limit' : 'auth';
+        const detail = stderr.trim()
+          ? `stderr: ${stderr.trim()}`
+          : (errorType === 'rate_limit' ? 'rate limit or transient API error' : 'Is it installed and authenticated?');
         reject(new TransportError(
-          `\`claude\` CLI preflight exited with code ${code}. ` +
-          (stderr.trim() ? `stderr: ${stderr.trim()}` : 'Is it installed and authenticated?'),
-          'auth'
+          `\`claude\` CLI preflight exited with code ${code}. ${detail}`,
+          errorType
         ));
       }
     });
@@ -423,13 +451,36 @@ export async function send(prompt, { onChunk, signal, timeoutMs } = {}) {
       if (code !== 0 && code !== null) {
         const errMsg = stderr.trim() || `exited with code ${code}`;
         const hadResult = resultText !== null;
+        // Check stderr for known transient API error types (rate limit, overload, etc.)
+        // and surface them as 'rate_limit' so callers can distinguish retryable
+        // failures from hard errors.
+        const errorType = isRetryableStderr(stderr) ? 'rate_limit' : 'response';
         done(reject, new TransportError(
           `\`claude\` CLI failed (exit ${code}${hadResult ? ', partial result received' : ''}): ${errMsg}`,
-          'response'
+          errorType
         ));
         return;
       }
-      done(resolve, resultText ?? accumulatedText);
+
+      // Exit code 0 with no output means the CLI quit before producing any
+      // response — this happens when a rate limit or transient API error causes
+      // the process to exit cleanly without emitting a result event.
+      // Write a recognisable token to stderr so ralph-afk's retry detector
+      // can mark this run as retryable and restart after a backoff.
+      const finalText = resultText ?? accumulatedText;
+      if (!finalText) {
+        process.stderr.write(
+          '[ralph] rate_limit_error: `claude` CLI exited cleanly with no output — ' +
+          'likely a rate limit or transient API error; will retry.\n'
+        );
+        done(reject, new TransportError(
+          '`claude` CLI exited cleanly but produced no output — possible rate limit or transient API error.',
+          'empty_response'
+        ));
+        return;
+      }
+
+      done(resolve, finalText);
     });
 
     child.on('error', (err) => {
