@@ -1,6 +1,6 @@
 {
   "name": "ralph-prd",
-  "version": "3.0.5",
+  "version": "3.1.0",
   "type": "module",
   "description": "AI-powered phased implementation runner for Claude Code — from PRD to shipped code",
   "bin": {
@@ -8,7 +8,8 @@
   },
   "exports": {
     ".": "./ralph/index.mjs",
-    "./transport": "./ralph/lib/transport.mjs"
+    "./transport": "./ralph/lib/transport.mjs",
+    "./plan-validator": "./ralph/lib/plan-validator.mjs"
   },
   "keywords": [
     "claude",

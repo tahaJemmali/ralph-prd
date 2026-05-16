@@ -8,3 +8,4 @@
 
 export { send, preflight, getCumulativeCost, TransportError } from './lib/transport.mjs';
 export { resolveRepos } from './lib/config.mjs';
+export { validatePlan, PlanValidationError } from './lib/plan-validator.mjs';
