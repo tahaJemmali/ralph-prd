@@ -17,10 +17,12 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
+const RUNNER_PATH = resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs');
+const RUNNER_URL = pathToFileURL(RUNNER_PATH).href;
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
@@ -50,9 +52,9 @@ if (subcommand === 'run') {
 
   // Import and run ralph-claude.mjs directly from the package
   // Override process.argv so ralph-claude.mjs sees the correct args
-  process.argv = [process.argv[0], resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs'), ...runArgs];
+  process.argv = [process.argv[0], RUNNER_PATH, ...runArgs];
 
-  await import(resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs'));
+  await import(RUNNER_URL);
 
 } else if (subcommand === 'init' || !subcommand) {
   // npx ralph-prd init  OR  npx ralph-prd (legacy: bare invocation = init)
@@ -61,12 +63,12 @@ if (subcommand === 'run') {
 
 } else if (subcommand === '--update-skills') {
   // npx ralph-prd --update-skills
-  process.argv = [process.argv[0], 'ralph-claude.mjs', '--update-skills'];
-  await import(resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs'));
+  process.argv = [process.argv[0], RUNNER_PATH, '--update-skills'];
+  await import(RUNNER_URL);
 
 } else {
   // Assume it's a plan file path (legacy: npx ralph-prd docs/feature/plan.md)
   // Treat bare arguments as plan files for backward compat
-  process.argv = [process.argv[0], resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs'), ...args];
-  await import(resolve(PKG_ROOT, 'ralph', 'ralph-claude.mjs'));
+  process.argv = [process.argv[0], RUNNER_PATH, ...args];
+  await import(RUNNER_URL);
 }
